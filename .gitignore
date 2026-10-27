@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.venv/
+data/
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store
+*.pdf
+profiles.yml
+*.pem
+*.key
