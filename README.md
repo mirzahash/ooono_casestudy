@@ -22,11 +22,16 @@ Run cells from top to bottom.
 | `01_api_exploration.ipynb` | Fetch five sample records from drives, warnings, and users; inspect columns. |
 | `02_data_profiling.ipynb` | Fetch and cache all historical drives and warnings; inspect identity, nulls, distributions, timestamps, and joins. |
 | `03_event_counts.ipynb` | Independently count all API rows and distinct IDs without retaining full payloads. |
+| `04_weekly_connection_behavior.ipynb` | Use cached records offline to validate canonical IDs, examine timestamps, and compare provisional weekly connection behavior. |
 
 Profiling and counting cache their progress under `data/`. Completed reruns use
 saved data without API calls; interrupted downloads resume. A new cache requires
 fresh API pagination. The counting notebook performs its own scan, so it is not
 needed to run profiling. The API is live and can change during pagination.
+The fourth notebook exports aggregate results to `reports/weekly_findings.md`;
+its proposed metric is documented in `reports/metric_definitions.md`. It uses
+device wall-calendar week labels provisionally; source timezone semantics and
+connection-counter meaning remain unconfirmed.
 The profiling notebook's latest local cache was refreshed on 27 October 2026
 using a 24-hour overlap on receipt time; that one-off refresh is not an automated
 notebook feature. Backdated receipts outside the overlap may be missed.
