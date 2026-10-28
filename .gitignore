@@ -19,3 +19,9 @@ profiles.yml
 *.pfx
 connections.toml
 get_details_*.csv
+
+# Local exploration and interview preparation (not part of submission)
+/03_event_counts.ipynb
+/PROJECT_CONTEXT.md
+/docs/dbt_walkthrough.md
+/interview_helper_files/

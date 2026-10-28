@@ -23,21 +23,19 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Add your own API credentials to `.env`. Open the notebooks from the project root
+Add your own API credentials to `.env`. Open the notebooks in `notebooks/`
 in VS Code with Jupyter support and select `.venv/bin/python` as the kernel.
 Run cells from top to bottom.
 
 | Notebook | Purpose |
 | --- | --- |
-| `01_api_exploration.ipynb` | Fetch five sample records from drives, warnings, and users; inspect columns. |
-| `02_data_profiling.ipynb` | Fetch and cache all historical drives and warnings; inspect identity, nulls, distributions, timestamps, and joins. |
-| `03_event_counts.ipynb` | Independently count all API rows and distinct IDs without retaining full payloads. |
-| `04_weekly_connection_behavior.ipynb` | Use cached records offline to validate canonical IDs, examine timestamps, and compare provisional weekly connection behavior. |
+| [`01_api_exploration.ipynb`](notebooks/01_api_exploration.ipynb) | Fetch five sample records from drives, warnings, and users; inspect columns. |
+| [`02_data_profiling.ipynb`](notebooks/02_data_profiling.ipynb) | Fetch and cache all historical drives and warnings; inspect identity, nulls, distributions, timestamps, and joins. |
+| [`04_weekly_connection_behavior.ipynb`](notebooks/04_weekly_connection_behavior.ipynb) | Use cached records offline to validate canonical IDs, examine timestamps, and compare provisional weekly connection behavior. |
 
 Profiling and counting cache their progress under `data/`. Completed reruns use
 saved data without API calls; interrupted downloads resume. A new cache requires
-fresh API pagination. The counting notebook performs its own scan, so it is not
-needed to run profiling. The API is live and can change during pagination.
+fresh API pagination. The API is live and can change during pagination.
 The fourth notebook exports aggregate results to `reports/weekly_findings.md`;
 its proposed metric is documented in `reports/metric_definitions.md`. It uses
 device wall-calendar week labels provisionally; source timezone semantics and
@@ -76,16 +74,16 @@ notebook feature. Backdated receipts outside the overlap may be missed.
 - Receipt timestamps are UTC; device timestamps without offsets need semantic
   validation before weekly reporting.
 - Multiple recorded connections are descriptive behavior, not confirmed failures.
-- Repeated drive reports need a business-identity policy; profiling currently
-  excludes repeated IDs conservatively from joins.
+- Canonicalization collapses agreeing reports after removing only `received_at`;
+  conflicting business payloads are excluded and exposed by blocking tests.
 - Missing warning actions do not establish ignored warnings or product failure.
-- The primary weekly metrics and release comparisons remain proposals.
+- Weekly connection-behavior metrics are validated against the frozen baseline;
+  release comparisons remain descriptive rather than causal.
 - Streaming, financial attribution, production orchestration, and cloud deployment
   are deliberately outside the current exploration.
 
 The intended production mapping is Python ingestion on AWS, raw data in Snowflake,
-dbt transformations, and reporting in Steep. See `PROJECT_CONTEXT.md` for project
-context and planned work. Snowflake RAW ingestion is implemented; AWS deployment,
+dbt transformations, and reporting in Steep. Snowflake RAW ingestion is implemented; AWS deployment,
 and Steep reporting are still future work; dbt is implemented.
 
 ## Repository hygiene
