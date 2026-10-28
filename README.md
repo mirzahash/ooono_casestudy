@@ -86,6 +86,25 @@ The intended production mapping is Python ingestion on AWS, raw data in Snowflak
 dbt transformations, and reporting in Steep. Snowflake RAW ingestion is implemented; AWS deployment,
 and Steep reporting are still future work; dbt is implemented.
 
+## Incremental loading and refresh strategy
+
+- **API ingestion is incremental:** normal runs request drives and warnings since
+  the previous successful receipt cutoff, with a 24-hour overlap. Users are fetched
+  in full on every fresh run. `--full` fetches all endpoints in full.
+- **Snapshots are cumulative:** normal runs combine incoming drive/warning reports
+  with the previous snapshot's history, then load a new immutable snapshot into
+  RAW. Snapshots overlap; select one snapshot rather than summing across them.
+- **dbt transformations use full rebuilds:** staging models are views, while the
+  intermediate and weekly mart tables are rebuilt from the selected snapshot and
+  receipt cutoff. They are not incremental dbt models. Captured late reports can
+  therefore revise historical weekly results when a newer baseline is selected.
+
+Incremental dbt processing is intentionally deferred to keep this case study
+simple and reproducible. At larger scale, recalculate affected sessions and weeks
+and merge the results, handling late reports, new warnings, conflicting records,
+and snapshot changes explicitly. The receipt overlap cannot guarantee capture of
+reports that become available with timestamps older than the lookback window.
+
 ## Repository hygiene
 
 Credentials, raw data, local environments, the supplied interview PDF, and local
