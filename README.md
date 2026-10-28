@@ -6,6 +6,16 @@ There is no confirmed drive-failure metric or implemented Steep dashboard.
 
 ## Run locally
 
+For an already-configured environment, run the full fresh-data pipeline with:
+
+```sh
+.venv/bin/python scripts/run_pipeline.py
+```
+
+See [pipeline run guide](docs/pipeline_run_guide.md) for resume, full refresh,
+overlap semantics, and validated-baseline fallback. This intentionally passes a
+new snapshot ID/cutoff to dbt without changing the checked-in defaults.
+
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
@@ -128,9 +138,9 @@ SMALL_TEST snapshot remains in RAW; summing all snapshots double-counts records.
 Rerunning the same snapshot is idempotent on `(snapshot_id, source_ordinal)`.
 Different snapshots may overlap. No source reports are business-deduplicated at
 load time. File/record checksums, original payloads, source receipts, ordinals, and
-load timestamps are retained. This is an initial-load MVP: timestamp-filtered API
-helpers exist, but no automatic incremental watermark framework is implemented.
-The future daily-overlap strategy and source identity limitations are documented
+load timestamps are retained. The fresh pipeline now supports a local last-success checkpoint, receipt-time overlap,
+full users captures, immutable snapshots, and an explicit dbt build. It has no
+production scheduler. See `docs/pipeline_run_guide.md` and the identity limitations
 in `docs/ingestion_design.md`. RAW validation passed and dbt is implemented. Steep has not been started.
 
 ## dbt Core — validated frozen baseline

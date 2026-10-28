@@ -156,6 +156,10 @@ See [dbt validation](../reports/dbt_validation.md) for exact reconciled counts.
 - Cutoff: `2026-10-27T15:21:56.773109+00:00`.
 
 The project does not automatically select a newer snapshot or call the API.
+For a fresh API-to-dbt run, use the separate
+[pipeline run guide](pipeline_run_guide.md). Its runner passes the new snapshot
+vars explicitly; running the dbt command here without vars still reproduces the
+original baseline.
 To intentionally use another completed full baseline:
 
 ```sh

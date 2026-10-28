@@ -16,4 +16,4 @@ with scoped as (
     where i.business_versions=1
     qualify row_number() over(partition by s.source_id order by s.source_received_at nulls last, s.source_ordinal)=1
 )
-{% endmacro %}
+{% endmacro %} 

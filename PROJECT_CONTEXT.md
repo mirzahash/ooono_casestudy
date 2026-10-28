@@ -108,6 +108,15 @@ profile/output/log files. `scripts/run_dbt.py` selects `dbt/` explicitly.
 
 ## 7. Next steps after validated dbt
 
+The fresh end-to-end runner is now implemented: `scripts/run_pipeline.py`.
+It uses a successful local parent/checkpoint and 24-hour receipt overlap, full
+users capture, a new cumulative immutable snapshot, append-only RAW loading,
+and dbt build with explicit vars. Checkpoint advances only on full success.
+The first live run produced 227,924 drives, 320,811 warnings, 3,095 current users,
+and 223,519 canonical sessions in derived models. The original baseline and dbt
+defaults remain unchanged; see `reports/pipeline_validation.md` and
+`docs/pipeline_run_guide.md` for fresh-run versus baseline-replay commands.
+
 1. Review `reports/dbt_validation.md` and the five implemented models with the candidate.
 2. Keep the default snapshot/cutoff pinned; change them only with explicit dbt vars. Never automatically choose the latest snapshot.
 3. When the user authorizes reporting, connect Steep with read-only access to ANALYTICS and expose the weekly mart with honest connection-behavior labels.

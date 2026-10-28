@@ -109,9 +109,11 @@ receipt filter and require complete current-state captures. Cursors paginate a
 particular query; permanence, expiry, snapshot isolation, and use as continuous
 incremental offsets are undocumented. A cursor is not a successful-load watermark.
 
-`api.py` supports received_since and checkpointed paging, but the MVP command uses
-the validated baseline plus users. No automatic incremental scheduler or watermark
-framework is implemented. Future daily delta batches should use the last successful
+`api.py` supports received_since and checkpointed paging. `scripts/run_pipeline.py`
+now implements the minimal local receipt-cutoff checkpoint, overlap extraction,
+cumulative snapshot assembly, append-only load, and explicit dbt build. The older
+`ingest.py prepare` remains available for importing the validated baseline plus users.
+No production scheduler or generalized incremental framework is implemented. Future daily delta batches should use the last successful
 receipt cutoff with a 24-hour overlap, freeze the response pages, load append-only,
 and advance the watermark only after a complete successful load. Preserve overlap
 rows in their snapshot lineage; later transformations identify overlap as distinct
@@ -160,3 +162,15 @@ References: [API specification](https://qw7ytrkpd3swtndax6c4a73oua0mcrky.lambda-
 [Python connector](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect),
 [COPY](https://docs.snowflake.com/en/sql-reference/sql/copy-into-table),
 [load metadata limits](https://docs.snowflake.com/en/user-guide/data-load-considerations-load).
+
+## Fresh pipeline command
+
+`scripts/run_pipeline.py` assembles a new cumulative FULL_BASELINE from the last
+fully successful pipeline parent and timestamp-filtered response pages. The first
+run uses the approved validated snapshot. A local checkpoint advances only after
+dbt build succeeds. Current users are fully refreshed. Parent and refreshed receipt
+overlap uses maximum observed multiplicity of identical full payloads, without
+session-level deduplication; original response pages remain archived. Distinct
+receipt content remains distinct. `--full` fetches all source pages independently.
+See `pipeline_run_guide.md` for exact commands, resume behavior, and limitations.
+The default dbt vars and approved baseline remain unchanged.

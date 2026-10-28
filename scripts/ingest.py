@@ -89,6 +89,12 @@ def freeze(baseline, work, sample=False):
                 'users_capture': {'started_at': extraction['started_at'], 'finished_at': extraction['finished_at']},
                 'baseline_provenance': 'Validated reconstructed baseline; historical HTTP page envelopes unavailable',
                 'source_ordinal': 'Zero-based position in each frozen endpoint record array'}
+    return finalize_snapshot(building, frames, identity)
+
+
+def finalize_snapshot(building, frames, identity):
+    """Write deterministic load envelopes and publish a checked immutable snapshot."""
+    building = Path(building)
     snapshot_id = fingerprint(identity)
     manifest = {'snapshot_id': snapshot_id, 'identity': identity, 'endpoints': {}}
     for endpoint, records in frames.items():
@@ -101,10 +107,10 @@ def freeze(baseline, work, sample=False):
                                 'source_id': record.get(ENDPOINTS[endpoint]),
                                 'source_received_at': record.get('received_at'), 'payload': record,
                                 'record_hash': hashlib.sha256(canonical(record).encode()).hexdigest(),
-                                'source_file': metadata[endpoint]['source_file'],
-                                'source_file_sha256': metadata[endpoint]['source_file_sha256']}
+                                'source_file': identity['endpoints'][endpoint]['source_file'],
+                                'source_file_sha256': identity['endpoints'][endpoint]['source_file_sha256']}
                     zipped.write((canonical(envelope) + '\n').encode())
-        manifest['endpoints'][endpoint] = {**metadata[endpoint], 'load_file': name, 'load_sha256': sha256(path)}
+        manifest['endpoints'][endpoint] = {**identity['endpoints'][endpoint], 'load_file': name, 'load_sha256': sha256(path)}
     atomic_json(building / 'manifest.json', manifest)
     destination = Path('data/snapshots') / snapshot_id
     destination.parent.mkdir(parents=True, exist_ok=True)

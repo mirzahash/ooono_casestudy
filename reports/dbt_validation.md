@@ -1,5 +1,10 @@
 # dbt validation — passed
 
+This is the original frozen-baseline validation. A later successful fresh run
+updated the derived models using explicit new vars; see
+[pipeline_validation.md](pipeline_validation.md). The baseline RAW and defaults
+remain unchanged. Rebuild the original baseline with the dbt runner without vars.
+
 Validated 28 October 2026 with dbt Core 1.12.6 / dbt-snowflake 1.12.4,
 Python 3.12.11, and the dedicated OOONO_DBT role. dbt debug passed. The isolated
 adapter uses connector 4.8.1; the Python 3.14 ingestion environment remains on
