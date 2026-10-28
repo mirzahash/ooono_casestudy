@@ -1,0 +1,23 @@
+version: 2
+models:
+  - name: int_drive_connection_behavior
+    description: "One canonical drive with preaggregated observed warnings. Ineligible drives and quality flags are retained; multi-connection is not a confirmed failure."
+    columns:
+      - name: session_id
+        data_tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_drives')
+                field: session_id
+      - name: is_eligible
+        data_tests: [not_null]
+      - name: reporting_week
+        description: "Monday of device wall-calendar week, provisional timezone semantics."
+      - name: warning_count
+        description: "Count of canonical warnings matching this drive; zero means no observed matching record."
+      - name: interval_valid_warning_count
+        description: "Matched warnings whose device clock lies within the inclusive drive interval."
+      - name: is_multi_connection
+        description: "connection_count > 1; not a drive-failure classification."

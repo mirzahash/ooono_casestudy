@@ -2,6 +2,10 @@
 .env.*
 !.env.example
 .venv/
+.venv-dbt/
+target/
+logs/
+dbt_packages/
 data/
 .ipynb_checkpoints/
 __pycache__/
@@ -10,3 +14,8 @@ __pycache__/
 profiles.yml
 *.pem
 *.key
+*.p8
+*.p12
+*.pfx
+connections.toml
+get_details_*.csv

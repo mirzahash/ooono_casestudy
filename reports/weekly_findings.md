@@ -1,75 +1,83 @@
-# Provisional weekly connection behavior
+# Weekly Product findings
 
-Receipt cutoff: 2026-10-27T15:21:56.773109+00:00. Offline analysis; no source refresh.
-Weeks use provisional device wall-calendar start dates. This is a comparison of
-recorded connection behavior, not a confirmed assessment of failed drives.
+As of 2026-10-27T15:21:56.773109+00:00; cached snapshot, no new API requests.
+Comparison: 2026-10-12–2026-10-18
+versus 2026-10-19–2026-10-25.
+Weeks are provisional device wall-calendar weeks, not a confirmed timezone conversion.
 
-## Data validation
+## 1. The aggregate connection signal improves, but cannot establish better drive experience
 
-| dataset | raw_rows | missing_id_rows | business_conflicting_ids | canonical_records | collapsed_replay_rows |
+The share of eligible reported drives with multiple connections changed from
+6.996% to
+6.585% (-0.411 percentage points).
+Android moved from 12.751% to
+13.107%; iOS from
+1.997% to
+0.885%.
+Changing iOS version adoption can affect the aggregate. This is recorded connection
+behavior, not a failed-drive rate or evidence of a release causing improvement.
+
+| week | eligible_drives | drives_with_multiple_connections | multiple_connection_pct | drivers_with_multiple_connection_drives |
+| --- | --- | --- | --- | --- |
+| 2026-10-12 | 21711 | 1519 | 6.996 | 804 |
+| 2026-10-19 | 21595 | 1422 | 6.585 | 725 |
+
+## 2. iOS 6.3.0 raises a counter/instrumentation question across device categories
+
+Across all available eligible history, iOS 6.3.0 has 26,367 drives,
+0 with multiple connections, and a connection
+range of 1–1.
+The version/device table tests whether this persists for each observed category.
+`device` describes CO-DRIVER categories, not iPhone models. Some earlier-version
+cohorts have few drivers; history-wide comparisons also have different date coverage.
+Check counter semantics or release instrumentation before treating its zero rate
+as evidence of stability. These observations do not prove an instrumentation defect.
+
+| app_version | 1 | 2 | 3 | 4 | 5 |
 | --- | --- | --- | --- | --- | --- |
-| drives | 224194 | 0 | 0 | 219848 | 4346 |
-| warnings | 315601 | 0 | 0 | 315601 | 0 |
+| 6.1.0 | 22223 | 1238 | 616 | 600 | 126 |
+| 6.1.1 | 59585 | 3325 | 1678 | 1711 | 374 |
+| 6.3.0 | 26367 | 0 | 0 | 0 | 0 |
 
-Repeated drive reports agree on every observed business field; collapse receipt-only
-replays to one session, retaining earliest/latest observed receipt and report count.
-Warnings match canonical drives at 99.952%; 152
-remain unmatched, with no user-ID mismatches among comparable matches.
-There are 150 future warning-clock flags and
-150 matched warnings outside the drive interval.
+| app_version | device | drives | multiple_connection_drives | connection_min | connection_max |
+| --- | --- | --- | --- | --- | --- |
+| 6.1.0 | CD1 | 7390 | 802 | 1 | 5 |
+| 6.1.0 | CD2 | 10915 | 1261 | 1 | 5 |
+| 6.1.0 | CD3 | 3422 | 341 | 1 | 5 |
+| 6.1.0 | none | 2115 | 176 | 1 | 4 |
+| 6.1.0 | unknown | 961 | 0 | 1 | 1 |
+| 6.1.1 | CD1 | 20539 | 2201 | 1 | 5 |
+| 6.1.1 | CD2 | 30031 | 3438 | 1 | 5 |
+| 6.1.1 | CD3 | 10007 | 966 | 1 | 5 |
+| 6.1.1 | none | 6096 | 483 | 1 | 4 |
+| 6.3.0 | CD1 | 8228 | 0 | 1 | 1 |
+| 6.3.0 | CD2 | 11348 | 0 | 1 | 1 |
+| 6.3.0 | CD3 | 4189 | 0 | 1 | 1 |
+| 6.3.0 | none | 2602 | 0 | 1 | 1 |
 
-## Last two complete calendar weeks
+## 3. Duration and warning activity provide context, not proof of missed alerts
 
-| week | eligible_drives | drivers | drives_with_multiple_connections | median_duration_s | p95_connections | multiple_connection_pct | drivers_with_multiple_connection_drives |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-12 | 21711 | 2462 | 1519 | 1000.0 | 2.0 | 6.996 | 804 |
-| 2026-10-19 | 21595 | 2472 | 1422 | 990.0 | 2.0 | 6.585 | 725 |
+For 6.3.0 across available history, median duration is 1002 seconds,
+p95 is 3300.8 seconds, and observed matched warnings average
+1.448 per drive. Compare versions in the same weeks
+below; warning rates depend on exposure, routes, warning types, and driver mix.
+In the latest complete week, 6.3.0 and 6.1.1 have similar interval-valid warning activity (4.061 versus 4.013 per drive-hour), with median durations 996 versus 952 seconds. There is no clear warning-activity collapse in this comparison. Neither a lower warning rate nor a zero-warning drive proves an alert was missed.
+There is no expected-warning denominator or explicit drive-failure outcome.
 
-The multiple-connection share changed by -0.411 percentage points.
-Distinct-driver counts measure drivers with this recorded behavior, not drivers
-proven to have had a failed drive. Driver totals are not additive across versions.
-
-## Platform and release context
-
-| week | platform | eligible_drives | drivers | drives_with_multiple_connections | median_duration_s | p95_connections | multiple_connection_pct | drivers_with_multiple_connection_drives |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-12 | android | 10093 | 1126 | 1287 | 994.0 | 3.0 | 12.751 | 650 |
-| 2026-10-12 | ios | 11618 | 1337 | 232 | 1004.0 | 1.0 | 1.997 | 154 |
-| 2026-10-19 | android | 10071 | 1124 | 1320 | 987.0 | 3.0 | 13.107 | 671 |
-| 2026-10-19 | ios | 11524 | 1349 | 102 | 992.5 | 1.0 | 0.885 | 54 |
-
-| week | platform | app_version | eligible_drives | drivers | drives_with_multiple_connections | median_duration_s | p95_connections | multiple_connection_pct | drivers_with_multiple_connection_drives |
+| week | app_version | drives | drivers | multiple_connection_pct | duration_p50_s | duration_p95_s | matched_warnings_per_drive | valid_warnings_per_drive_hour | zero_observed_warning_pct |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-12 | android | 6.1.0 | 271 | 27 | 22 | 999.0 | 2.5 | 8.118 | 15 |
-| 2026-10-12 | android | 6.2.0 | 9822 | 1108 | 1265 | 994.0 | 3.0 | 12.879 | 636 |
-| 2026-10-12 | ios | 6.1.0 | 107 | 1 | 0 | 854.0 | 1.0 | 0.0 | 0 |
-| 2026-10-12 | ios | 6.1.1 | 2344 | 380 | 232 | 1016.0 | 3.0 | 9.898 | 154 |
-| 2026-10-12 | ios | 6.3.0 | 9167 | 1158 | 0 | 1001.0 | 1.0 | 0.0 | 0 |
-| 2026-10-19 | android | 6.1.0 | 112 | 10 | 3 | 972.5 | 1.0 | 2.679 | 3 |
-| 2026-10-19 | android | 6.2.0 | 9959 | 1119 | 1317 | 987.0 | 3.0 | 13.224 | 668 |
-| 2026-10-19 | ios | 6.1.0 | 103 | 1 | 0 | 1056.0 | 1.0 | 0.0 | 0 |
-| 2026-10-19 | ios | 6.1.1 | 772 | 117 | 102 | 952.0 | 3.0 | 13.212 | 54 |
-| 2026-10-19 | ios | 6.3.0 | 10649 | 1289 | 0 | 996.0 | 1.0 | 0.0 | 0 |
+| 2026-10-12 | 6.1.0 | 107 | 1 | 0.0 | 854.0 | 2772.0 | 0.0 | 0.0 | 100.0 |
+| 2026-10-12 | 6.1.1 | 2344 | 380 | 9.898 | 1016.0 | 3393.4 | 1.488 | 4.003 | 32.892 |
+| 2026-10-12 | 6.3.0 | 9167 | 1158 | 0.0 | 1001.0 | 3216.0 | 1.425 | 3.987 | 34.613 |
+| 2026-10-19 | 6.1.0 | 103 | 1 | 0.0 | 1056.0 | 2730.4 | 0.0 | 0.0 | 100.0 |
+| 2026-10-19 | 6.1.1 | 772 | 117 | 13.212 | 952.0 | 3018.0 | 1.356 | 4.013 | 34.585 |
+| 2026-10-19 | 6.3.0 | 10649 | 1289 | 0.0 | 996.0 | 3318.6 | 1.473 | 4.061 | 34.801 |
 
-The observed iOS 6.3.0 cohorts have no multiple-connection drives in these weeks.
-That warrants checking counter semantics and instrumentation; it does not prove
-zero interruptions. Adoption changes can alter aggregate rates even without
-within-version improvement. Release comparisons are observational and confounded
-by platform, duration, device, rollout population, and instrumentation.
-
-## Timing and limitations
-
-Most device end clocks are about two hours ahead of UTC receipt clocks in continental
-countries and one hour ahead in GB, consistent with local clocks plus arrival delay.
-This is evidence, not a timezone contract; country alone is insufficient. Do not
-interpret negative clock differences as negative latency. See notebook duration/device
-strata and +/-2-hour boundary sensitivity checks.
-
-The saved cutoff includes reports arriving after their calendar week closed.
-Further late reports can revise the results. Full pagination is not proof that all
-attempted drives were reported, and the incremental refresh cannot guarantee older
-backdated receipts. Confirm source timestamp and connection-count meanings before
-using the candidate metric as a product-health KPI. Warning frequency and missing
-actions do not establish missed alerts. No causal or monetary claim is supported.
-
-Metric contract: [metric_definitions.md](metric_definitions.md).
+Quality and scope: receipt-only replays are collapsed before analysis. The canonical
+warning join matches 99.952%; 152 warnings are unmatched.
+150 matched warnings are outside drive intervals and excluded from
+interval-valid warning rates. Zero observed warning counts can reflect incomplete
+source reporting. Full API pagination does not establish complete attempted drives.
+Late reports can revise weekly results; historical backdated receipts outside the
+refresh overlap can be missed. Driver counts are not additive across versions.
+See [metric_definitions.md](metric_definitions.md) for eligibility and exclusions.

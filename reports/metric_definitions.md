@@ -1,6 +1,7 @@
-# Provisional weekly connection behavior
+# Metric definitions — case-study descriptive MVP
 
-Status: proposed descriptive metric for review. It does not establish a failed,
+Status: finalized calculation contract for the descriptive MVP, subject to the
+explicit source-semantic assumptions below. It does not establish a failed,
 interrupted, or bad drive. The source does not expose an explicit outcome flag.
 
 ## Canonical session
@@ -57,3 +58,53 @@ Before using this as a confirmed product-health KPI, validate timestamp semantic
 and connection-count meaning with the source owner. Until then, present findings
 as provisional signals and explicitly state that worse driver experience cannot
 be concluded from these fields alone.
+
+## Supporting duration and warning measures
+
+Duration context is the median and p95 of `duration_s` over the same eligible,
+canonical sessions; use seconds, not receipt-clock differences. All-history and
+same-week version comparisons are displayed separately to expose calendar mix.
+
+Warning identity is `warning_id`; collapse only agreeing business records as
+above, retaining receipt metadata. Join warnings to canonical sessions using a
+validated many-to-one `session_id` join. Apply the same saved receipt cutoff to
+both inputs. Count unmatched warnings separately, never attach them arbitrarily.
+
+- Matched warnings per drive: count of canonical matched warnings divided by
+  eligible canonical drives, including drives with zero observed warnings.
+- Interval-valid warnings per drive-hour: count of matched warnings whose parsed
+  `device_time` lies within the inclusive drive start/end interval, divided by
+  total eligible drive duration in hours. Unparseable/out-of-interval warning
+  clocks are excluded from this numerator and counted as quality exceptions.
+- Zero observed warning share: eligible drives with no matched warning record,
+  divided by eligible drives. This describes observed records, not missed alerts.
+
+Assume timestamps within one joined session use comparable wall clocks for the
+interval check; this is not a timezone conversion or a guarantee of clock accuracy.
+Driving hours are an exposure proxy, not the number of expected alerts. Routes,
+geography, warning availability, duration, drivers, and rollout mix can explain
+differences. Do not interpret absent reactions as dissatisfaction or failure.
+
+## Final interpretation for iOS 6.3.0
+
+All 26,367 eligible 6.3.0 sessions in the frozen extract have a count of exactly
+one across every observed device category. Treat the field as potentially
+noncomparable across versions until its semantics/instrumentation are confirmed.
+Do not publish a zero-failure claim or describe aggregate improvement as improved
+experience. The `device` field describes CO-DRIVER categories, not handset models.
+The same-week 6.1.0 comparison includes only one driver per week; it is descriptive
+and not a representative release baseline. The 6.1.1 population is also changing.
+
+## Frozen analysis inputs
+
+Notebook 04 reads `data/analysis_snapshot_20261027/`, reconstructed offline from
+the completed baseline and completed refresh after the active profiling cache was
+found incomplete. Its local manifest records source and reconstructed checksums.
+Receipt cutoff: `2026-10-27T15:21:56.773109+00:00`.
+224,194 drive reports reduce to 219,848 canonical sessions; 315,601 canonical
+warnings remain. There are no observed business-field conflicts. All canonical
+sessions pass the stated numeric/time eligibility rules in this snapshot.
+
+These rules and counts refer to this snapshot, not a claim about future data.
+Revalidate eligibility/conflicts on each new snapshot. Week comparisons use
+12–18 and 19–25 October 2026, excluding the current incomplete calendar week.

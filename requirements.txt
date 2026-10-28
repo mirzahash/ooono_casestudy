@@ -2,3 +2,4 @@ pandas
 requests
 python-dotenv
 ipykernel
+snowflake-connector-python==5.1.0

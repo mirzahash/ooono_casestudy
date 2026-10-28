@@ -1,0 +1,23 @@
+name: ooono_release_health
+version: '1.0.0'
+config-version: 2
+profile: ooono_release_health
+model-paths: [models]
+macro-paths: [macros]
+test-paths: [tests]
+clean-targets: [target, dbt_packages]
+vars:
+  snapshot_id: e943b3aefc3411575c251ada7404c7013b54bf9510e8d37e9e69bd2f80bf863a
+  receipt_cutoff: '2026-10-27T15:21:56.773109+00:00'
+models:
+  ooono_release_health:
+    +persist_docs: {relation: true, columns: true}
+    staging:
+      +schema: STAGING
+      +materialized: view
+    intermediate:
+      +schema: STAGING
+      +materialized: table
+    marts:
+      +schema: ANALYTICS
+      +materialized: table

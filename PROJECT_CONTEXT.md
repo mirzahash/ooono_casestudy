@@ -1,6 +1,6 @@
 # OOONO — Release Health Analytics Engineering Case | Project Context
 
-_Last updated: 25 October 2026_
+_Last updated: 28 October 2026_
 
 ## 1. Assignment and objective
 
@@ -14,16 +14,16 @@ The Head of Engineering wants faster detection, the CFO wants proportionate cost
 
 ## 2. Current progress — confirmed
 
-- Reviewed the case assignment and API documentation.
-- Identified three API resources: **drives**, **warnings**, **users**.
-- Confirmed OAuth authentication with approximately one-hour access tokens and cursor-based pagination. The first request after inactivity may be slow.
-- Created a local Python environment (`.venv`, `requirements.txt`, `.env`, `.env.example`, `.gitignore`) with secrets excluded from Git.
-- Created **two notebooks**: **Data Exploration** and **Data Profiling**. Data Exploration has been used to request and inspect small samples (five records per endpoint). Data Profiling has been created; its specific checks, outputs, and findings should be read from the notebook before claiming they are complete or validated.
-- Observed drives fields including session/user identifiers, platform, app version, device, country, start/end times, duration, connection count, and received time. Observed warnings fields include warning/session/user identifiers, warning type, device time, user action, and received time. Verify exact column names in the notebooks; do not infer undocumented fields.
-- Created a **Snowflake account** and selected Snowflake as the project warehouse rather than the originally proposed DuckDB approach.
-- Opened Snowflake **Projects → Workspaces → Add new → SQL file** and prepared setup SQL for database `OOONO_CASE`, schemas `RAW`, `STAGING`, `ANALYTICS`, and warehouse `OOONO_WH` (XSMALL, 60-second auto-suspend). **Verify these objects actually exist before treating setup as complete.**
-- Created a **Steep account** and explored its data-source connection interface. The intended reporting integration is **Steep → Snowflake analytics models**; connection and dashboard are not yet confirmed complete.
-- **No dbt models or Snowflake ingestion pipeline have been confirmed as built.**
+- API exploration and full-history profiling are complete. Four notebooks cover exploration, profiling, event counts, and weekly behavior.
+- Frozen baseline `e943b3aefc3411575c251ada7404c7013b54bf9510e8d37e9e69bd2f80bf863a` is loaded into Snowflake RAW: 224,200 drives, 315,614 warnings, 3,085 current-state users. A separate SMALL_TEST snapshot remains in RAW; always select the intended snapshot.
+- The notebook UTC receipt cutoff is `2026-10-27T15:21:56.773109+00:00`. It selects 224,194 drive reports and 315,601 warnings; six drive and 13 warning receipts after cutoff remain in RAW.
+- Canonicalization collapses 4,346 receipt-only repeats to 219,848 sessions, with no business-field conflicts in the baseline. Source records are not deduplicated during ingestion.
+- `OOONO_CASE.RAW`, `STAGING`, `ANALYTICS`, and `OOONO_WH` are verified. Ingestion uses OOONO_INGESTOR; transformations use dedicated OOONO_DBT, with SELECT-only RAW access. Encrypted key-pair authentication works. The actual LOGIN_NAME differs from the user object name; use local configuration, not assumptions.
+- dbt Core 1.12.6 / dbt-snowflake 1.12.4 run in isolated Python 3.12 `.venv-dbt`. The original Python 3.14 ingestion environment and connector 5.1.0 are unchanged.
+- Implemented `stg_drives`, `stg_warnings`, `stg_users` as STAGING views; `int_drive_connection_behavior` as a STAGING table; `mart_weekly_release_health` as an ANALYTICS table. dbt debug and the complete build passed; known orphan/clock warnings remain visible.
+- Metric contract and three Product findings are in `reports/metric_definitions.md` and `reports/weekly_findings.md`. Connection behavior is descriptive, not a confirmed failed-drive rate. iOS 6.3.0 counter comparability remains unconfirmed.
+- Steep was explored previously but has not been implemented. Do not start it without the user's next instruction.
+- Local private files and an unrelated untracked document must not be included in project commits. See Git status before staging.
 
 ## 3. Selected architecture
 
@@ -76,47 +76,43 @@ Candidate supporting metrics, only if fields and semantics permit:
 
 Document for each KPI: business meaning, numerator, denominator, exclusions, event-time column, timezone, week boundary, treatment of incomplete sessions, and limitations. Use event time for reporting and received/ingestion time for ingestion watermarks when supported. Avoid interpreting a low warning count as proof of a healthier app.
 
-## 6. Intended project structure
-
-Adapt filenames to the two notebooks that already exist; do not rename or overwrite them blindly.
+## 6. Current project structure
 
 ```text
-ooono-release-health/
-├── PROJECT_CONTEXT.md
-├── README.md
-├── .env                       # local only; excluded from Git
-├── .env.example               # variable names/placeholders only
-├── .gitignore
+OOONO-CaseStudy/
+├── dbt/                        # dbt project root
+│   ├── dbt_project.yml
+│   ├── profiles.yml.example
+│   ├── models/
+│   │   ├── staging/ooono/
+│   │   ├── intermediate/
+│   │   └── marts/
+│   ├── macros/
+│   └── tests/
+├── scripts/                    # ingestion, connection, dbt runner
+├── sql/                        # one-time role/RAW setup
+├── tests/test_ingestion.py     # Python invariants
+├── reports/
+├── docs/
+├── 01_api_exploration.ipynb
+├── 02_data_profiling.ipynb
+├── 03_event_counts.ipynb
+├── 04_weekly_connection_behavior.ipynb
 ├── requirements.txt
-├── notebooks/
-│   ├── <existing Data Exploration notebook>.ipynb
-│   └── <existing Data Profiling notebook>.ipynb
-├── scripts/
-│   └── ingest.py
-├── dbt_project.yml             # if dbt project lives at repository root
-├── models/
-│   ├── staging/
-│   │   ├── stg_drives.sql
-│   │   ├── stg_warnings.sql
-│   │   └── stg_users.sql
-│   └── marts/
-│       ├── fct_drive_experience.sql       # only if justified
-│       └── fct_weekly_release_health.sql
-└── reports/
-    └── findings.md
+├── requirements-dbt.txt
+└── .env.example
 ```
 
-The above is a **target layout**, not a claim that all files exist. Keep raw extracts and credentials out of the submitted repository.
+Ignored local inputs include `.env`, environments, keys/data snapshots, and dbt
+profile/output/log files. `scripts/run_dbt.py` selects `dbt/` explicitly.
 
-## 7. Next implementation steps
+## 7. Next steps after validated dbt
 
-1. **Verify Snowflake setup**: Confirm `OOONO_CASE`, `RAW`, `STAGING`, `ANALYTICS`, and `OOONO_WH` exist and the active role has permissions. If absent, create them in a SQL file in Snowflake Workspaces.
-2. **Review Data Profiling results**: Inspect completeness, duplicates, session integrity, timestamp consistency, available failure signals, and app-version coverage. Record findings and unresolved questions before fixing metrics.
-3. **Build repeatable ingestion**: Convert exploratory API calls into a small Python ingestion script with OAuth renewal, cursor pagination, retries, a bounded time window, and safe reruns. Load `RAW` tables in Snowflake; retain source timestamps and ingestion timestamp.
-4. **Configure local dbt Core**: Install `dbt-snowflake`, configure a secure Snowflake profile, and run `dbt debug`. Create `sources.yml` for raw tables.
-5. **Create models and tests**: Build three staging models; then the minimum drive-level model needed to support the selected KPI and one weekly mart. Test uniqueness/not-null where justified, accepted values, timestamp sanity, and reconciliation to raw source counts.
-6. **Connect Steep**: Connect Steep to Snowflake with read access to the analytics schema; use the final mart for the weekly release-health view. Keep visuals compact and readable.
-7. **Validate findings and demo**: Check the last complete week versus previous week, version/platform differences, data freshness, and 2–3 evidence-based takeaways. Document known limitations and rehearse a short live run. Prepare a local fallback in case cloud connectivity fails.
+1. Review `reports/dbt_validation.md` and the five implemented models with the candidate.
+2. Keep the default snapshot/cutoff pinned; change them only with explicit dbt vars. Never automatically choose the latest snapshot.
+3. When the user authorizes reporting, connect Steep with read-only access to ANALYTICS and expose the weekly mart with honest connection-behavior labels.
+4. Prepare the short live demo and local aggregate fallback; explain iOS instrumentation and timestamp limitations.
+5. Commit/push only relevant reviewed files, excluding credentials, data dumps, notebook outputs, unrelated files, dbt logs, and targets.
 
 ## 8. Important engineering decisions
 
@@ -130,6 +126,6 @@ The above is a **target layout**, not a claim that all files exist. Keep raw ext
 
 ## 9. How Codex should collaborate
 
-Act as a pragmatic senior Analytics Engineer pairing with a candidate. Read this file and the **actual two notebooks** before changing code. Work in small, reviewable steps, state expected effort and trade-offs, distinguish observed facts from hypotheses, and avoid creating unnecessary infrastructure. Prioritize a trustworthy Head-of-Product weekly answer. Ask before choosing a business definition unsupported by data. Check `.gitignore` and credential handling before commits. End with a concise README, two or three defensible findings, and a 5–10 minute demo narrative.
+Act as a pragmatic senior Analytics Engineer pairing with a candidate. Read this file, the relevant notebooks, and the validation documents before changing code. Work in small, reviewable steps, state expected effort and trade-offs, distinguish observed facts from hypotheses, and avoid creating unnecessary infrastructure. Prioritize a trustworthy Head-of-Product weekly answer. Ask before choosing a business definition unsupported by data. Check `.gitignore` and credential handling before commits. End with a concise README, two or three defensible findings, and a 5–10 minute demo narrative.
 
-**Immediate next action:** Verify Snowflake database/schema/warehouse setup and inspect the Data Profiling notebook's actual findings. Then decide the first reliable drive-experience KPI and implement a minimal raw ingestion path into Snowflake.
+**Immediate next action:** Review the completed dbt validation with the user. Do not start Steep yet.

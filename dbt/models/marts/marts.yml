@@ -1,0 +1,22 @@
+version: 2
+models:
+  - name: mart_weekly_release_health
+    description: "Week x platform x app version. Eligible reported drives only, excluding current and known partial first calendar weeks. Connection behavior is not a confirmed failure rate. Driver counts are not additive across groups."
+    columns:
+      - name: reporting_week
+        data_tests: [not_null]
+        description: "Monday of provisional device wall-calendar week."
+      - name: platform
+        data_tests: [not_null]
+      - name: app_version
+        data_tests: [not_null]
+      - name: eligible_drives
+        data_tests: [not_null]
+      - name: multi_connection_share
+        description: "0–1 ratio. Overall share must be SUM(multi_connection_drives)/SUM(eligible_drives), not an average of group shares."
+      - name: drivers_with_multiple_connections
+        description: "Distinct drivers with at least one multi-connection drive in this group; not drivers proven to have failed drives."
+      - name: multi_connection_share_wow_pp
+        description: "Percentage-point change against the immediately preceding week in the same platform/version. NULL if absent."
+      - name: analysis_receipt_cutoff
+        description: "Configured fixed UTC source-receipt cutoff, not wall-clock refresh time."

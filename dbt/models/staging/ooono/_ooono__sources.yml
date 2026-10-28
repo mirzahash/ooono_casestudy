@@ -1,0 +1,15 @@
+version: 2
+sources:
+  - name: ooono_raw
+    database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+    schema: RAW
+    description: "Append-only source reports and immutable snapshot registry; select the configured snapshot explicitly."
+    tables:
+      - name: drives
+        identifier: DRIVES
+      - name: warnings
+        identifier: WARNINGS
+      - name: users
+        identifier: USERS
+      - name: ingestion_snapshots
+        identifier: INGESTION_SNAPSHOTS
