@@ -6,6 +6,11 @@ There is no confirmed drive-failure metric or implemented Steep dashboard.
 
 ## Run locally
 
+**New laptop or fresh checkout?** Follow the
+[fresh-laptop walkthrough](docs/fresh_laptop_setup.md) for both Python environments,
+secure authentication, one-time Snowflake setup, connection checks, and the first
+full API-to-dbt run. It does not require the original laptop's local snapshots.
+
 For an already-configured environment, run the full fresh-data pipeline with:
 
 ```sh
