@@ -6,7 +6,7 @@ models:
       - name: session_id
         data_tests: [not_null, unique]
       - name: first_received_at
-        description: "Earliest observed UTC receipt for this session within the selected snapshot/cutoff."
+        description: "Earliest observed UTC receipt for this session within the receipt cutoff."
       - name: started_at
         description: "Device wall time without timezone. Do not treat as confirmed UTC."
       - name: connection_count

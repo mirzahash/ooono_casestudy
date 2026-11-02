@@ -1,8 +1,8 @@
 {% macro agreed_records(source_table, receipt_filter=true) %}
+-- RAW stores reports once. Canonicalization ignores only received_at.
 with scoped as (
     select * from {{ source('ooono_raw', source_table) }}
-    where snapshot_id = {{ snapshot_literal() }}
-    {% if receipt_filter %}and source_received_at <= {{ cutoff_literal() }}{% endif %}
+    {% if receipt_filter %}where source_received_at <= {{ cutoff_literal() }}{% endif %}
 ), identities as (
     select source_id,
         count(distinct to_json(object_delete(payload, 'received_at'))) as business_versions,
@@ -14,6 +14,7 @@ with scoped as (
     select s.*, i.first_received_at, i.last_received_at, i.report_count
     from scoped s join identities i on s.source_id=i.source_id
     where i.business_versions=1
-    qualify row_number() over(partition by s.source_id order by s.source_received_at nulls last, s.source_ordinal)=1
+    qualify row_number() over(partition by s.source_id
+        order by s.source_received_at nulls last, s.report_key)=1
 )
-{% endmacro %} 
+{% endmacro %}

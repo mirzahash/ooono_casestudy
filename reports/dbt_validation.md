@@ -1,3 +1,5 @@
+> Historical validation of the submitted snapshot implementation. For the simplified feature branch, see [simplification validation](simplification_validation.md).
+
 # dbt validation — passed
 
 This is the original frozen-baseline validation. A later successful fresh run

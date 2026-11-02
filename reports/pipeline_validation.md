@@ -1,3 +1,5 @@
+> Historical validation of the submitted snapshot implementation. For the simplified feature branch, see [simplification validation](simplification_validation.md).
+
 # Fresh pipeline validation
 
 Status: COMPLETE. Executed the new end-to-end command on 28 October 2026.

@@ -8,9 +8,9 @@ with checks as (
     union all select 'users',count(*),3085 from {{ ref('stg_users') }}
     union all select 'collapsed_receipts',sum(report_count-1),4346 from {{ ref('stg_drives') }}
     union all select 'cutoff_drive_reports',count(*),224194 from {{ source('ooono_raw','drives') }}
-      where snapshot_id={{ snapshot_literal() }} and source_received_at<={{ cutoff_literal() }}
-    union all select 'raw_drive_rows',count(*),224200 from {{ source('ooono_raw','drives') }} where snapshot_id={{ snapshot_literal() }}
-    union all select 'raw_warning_rows',count(*),315614 from {{ source('ooono_raw','warnings') }} where snapshot_id={{ snapshot_literal() }}
+      where source_received_at<={{ cutoff_literal() }}
+    union all select 'raw_drive_rows',count(*),224200 from {{ source('ooono_raw','drives') }}
+    union all select 'raw_warning_rows',count(*),315614 from {{ source('ooono_raw','warnings') }}
 )
 select * from checks where actual<>expected
 {% else %}

@@ -20,3 +20,5 @@ models:
         description: "Percentage-point change against the immediately preceding week in the same platform/version. NULL if absent."
       - name: analysis_receipt_cutoff
         description: "Configured fixed UTC source-receipt cutoff, not wall-clock refresh time."
+      - name: snapshot_id
+        description: "Legacy column name retained for Steep compatibility; now identifies the analytical run, not a cumulative snapshot."

@@ -1,4 +1,4 @@
-"""Snowflake connection configuration. No warehouse writes occur here."""
+"""Connect to Snowflake and insert newly observed reports into append-only RAW."""
 
 import getpass
 import os
@@ -13,7 +13,9 @@ SETTING_NAMES = ("ACCOUNT", "USER", "ROLE", "WAREHOUSE", "DATABASE", "SCHEMA")
 AUTHENTICATORS = {"SNOWFLAKE_JWT", "externalbrowser", "username_password_mfa"}
 
 
+# Read and check local Snowflake settings before connecting.
 def read_config():
+    """Read/validate local Snowflake environment settings without connecting."""
     load_dotenv(PROJECT_ROOT / ".env")
     config = {
         name.lower(): os.environ.get(f"SNOWFLAKE_{name}", "").strip()
@@ -44,9 +46,13 @@ def read_config():
     return config
 
 
+# Sign in to Snowflake using the supplied settings.
 def connect(config):
+    """Authenticate from config and return an open Snowflake connector connection."""
     import snowflake.connector
 
+    # Copy rather than mutate config when adding sensitive authentication options.
+    # The returned connection is live; callers must scope/close it appropriately.
     options = dict(config)
     mode = options["authenticator"]
     if mode == "SNOWFLAKE_JWT":
@@ -65,15 +71,17 @@ def connect(config):
     return snowflake.connector.connect(**options)
 
 
+# Check and quote a Snowflake object name before putting it into SQL.
 def quoted_identifier(value):
-    """Only previously validated simple identifiers may enter SQL text."""
+    """Return a validated simple SQL identifier, uppercased and double quoted."""
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", value):
         raise ValueError("Unsupported identifier")
     return '"' + value.upper() + '"'
 
 
+# Create any missing RAW tables and the upload stage.
 def setup_raw(connection):
-    """Only additive setup in the configured existing RAW schema."""
+    """Execute additive RAW DDL using an already configured connection/schema."""
     sql = (PROJECT_ROOT / 'sql' / 'raw_setup.sql').read_text()
     sql = '\n'.join(line for line in sql.splitlines() if not line.lstrip().startswith('--'))
     with connection.cursor() as cursor:
@@ -82,203 +90,107 @@ def setup_raw(connection):
                 cursor.execute(statement)
 
 
-def setup_runtime_role(connection, config):
-    """Small object-scoped loader role; the user object differs from LOGIN_NAME."""
-    role = 'OOONO_INGESTOR'
-    db, schema, wh = (quoted_identifier(config[k]) for k in ('database', 'schema', 'warehouse'))
-    prefix = f'{db}.{schema}'
+TABLES = {'drives': 'DRIVE_REPORTS', 'warnings': 'WARNING_REPORTS', 'users': 'USER_PROFILES'}
+
+
+def last_success(connection):
+    """The warehouse checkpoint works on a new laptop too; no local state needed."""
     with connection.cursor() as cursor:
-        cursor.execute(f'CREATE ROLE IF NOT EXISTS {role}')
-        cursor.execute('SELECT CURRENT_USER()')
-        user = '"' + cursor.fetchone()[0].replace('"', '""') + '"'
-        cursor.execute(f'GRANT ROLE {role} TO USER {user}')
-        cursor.execute(f'GRANT USAGE ON WAREHOUSE {wh} TO ROLE {role}')
-        cursor.execute(f'GRANT USAGE ON DATABASE {db} TO ROLE {role}')
-        cursor.execute(f'GRANT USAGE ON SCHEMA {prefix} TO ROLE {role}')
-        # Needed only for session-local COPY landing tables.
-        cursor.execute(f'GRANT CREATE TABLE ON SCHEMA {prefix} TO ROLE {role}')
-        cursor.execute(f'GRANT READ, WRITE ON STAGE {prefix}.INGESTION_STAGE TO ROLE {role}')
-        for table in ('DRIVES', 'WARNINGS', 'USERS'):
-            cursor.execute(f'GRANT SELECT, INSERT ON TABLE {prefix}.{table} TO ROLE {role}')
-        cursor.execute(f'GRANT SELECT, INSERT, UPDATE ON TABLE {prefix}.INGESTION_SNAPSHOTS TO ROLE {role}')
-    return role
+        cursor.execute("SELECT BATCH_ID, RECEIPT_CUTOFF FROM INGESTION_RUNS "
+                       "WHERE STATUS='COMPLETE' ORDER BY RECEIPT_CUTOFF DESC LIMIT 1")
+        row = cursor.fetchone()
+    return {'batch_id': row[0], 'receipt_cutoff': row[1].isoformat()} if row else None
 
 
-def load_snapshot(connection, directory, manifest):
-    """COPY to temp landing then append using explicit snapshot/ordinal MERGEs."""
-    import json
+def load_batch(connection, run, files):
+    """Validate fetched files, insert unseen reports, and replace current users.
+
+    A batch's inserts and RAW_LOADED record commit together. Replaying it is safe.
+    This assumes one pipeline writer, not distributed exactly-once delivery.
+    """
     import uuid
-
-    snapshot_id = manifest['snapshot_id']
-    if not re.fullmatch('[0-9a-f]{64}', snapshot_id):
-        raise ValueError('Invalid snapshot ID')
-    columns = ('SNAPSHOT_ID, SOURCE_ORDINAL, SOURCE_ID, SOURCE_RECEIVED_AT, PAYLOAD, '
-               'RECORD_HASH, SOURCE_FILE, SOURCE_FILE_SHA256, INGESTED_AT')
+    if not re.fullmatch(r'[0-9a-f]{64}', run['batch_id']):
+        raise ValueError('Invalid batch ID')
+    if set(files) != set(TABLES):
+        raise ValueError('A batch must contain all three endpoints')
     with connection.cursor() as cursor:
-        cursor.execute('SELECT MANIFEST, STATUS FROM INGESTION_SNAPSHOTS WHERE SNAPSHOT_ID=%s', (snapshot_id,))
+        latest = last_success(connection)
+        from datetime import datetime
+        if latest and datetime.fromisoformat(latest['receipt_cutoff']) > datetime.fromisoformat(run['receipt_cutoff']):
+            raise ValueError('A newer run has completed; do not replay older data over it')
+        cursor.execute('SELECT STATUS FROM INGESTION_RUNS WHERE BATCH_ID=%s', (run['batch_id'],))
         existing = cursor.fetchall()
         if len(existing) > 1:
-            raise ValueError('Duplicate warehouse snapshot manifest keys')
+            raise ValueError('Duplicate batch registry keys')
         if existing:
-            stored = json.loads(existing[0][0]) if isinstance(existing[0][0], str) else existing[0][0]
-            if stored != manifest:
-                raise ValueError('Existing snapshot ID has a different manifest')
-            if existing[0][1] != 'COMPLETE':
-                raise ValueError('Unexpected incomplete manifest state')
-            counts = validate_counts(cursor, manifest)
-            return {'snapshot_id': snapshot_id, 'status': 'ALREADY_LOADED', 'counts': counts}
+            return {'status': 'ALREADY_LOADED', 'batch_id': run['batch_id']}
         landing = {}
-        for endpoint, meta in manifest['endpoints'].items():
-            if endpoint not in {'drives', 'warnings', 'users'}:
-                raise ValueError('Unsupported endpoint')
-            table = endpoint.upper()
+        for endpoint, meta in files.items():
+            table = TABLES[endpoint]
             temp = 'LANDING_' + uuid.uuid4().hex.upper()
             landing[endpoint] = temp
             cursor.execute(f'CREATE TEMPORARY TABLE {temp} LIKE {table}')
-            upload = (Path(directory) / meta['load_file']).resolve().as_uri().replace("'", "''")
-            stage_path = f'@INGESTION_STAGE/{snapshot_id}/{endpoint}/'
-            cursor.execute(f"PUT '{upload}' {stage_path} AUTO_COMPRESS=FALSE OVERWRITE=FALSE")
+            upload = Path(meta['file']).resolve().as_uri().replace("'", "''")
+            stage = f"@REPORT_LOAD_STAGE/{run['batch_id']}/{endpoint}/"
+            cursor.execute(f"PUT '{upload}' {stage} AUTO_COMPRESS=FALSE OVERWRITE=TRUE")
             cursor.fetchall()
-            cursor.execute(f'''COPY INTO {temp} ({columns}) FROM (
-                SELECT $1:snapshot_id::VARCHAR, $1:source_ordinal::NUMBER,
-                       $1:source_id::VARCHAR, TRY_TO_TIMESTAMP_TZ($1:source_received_at::VARCHAR),
-                       $1:payload, $1:record_hash::VARCHAR, $1:source_file::VARCHAR,
-                       $1:source_file_sha256::VARCHAR, CURRENT_TIMESTAMP()
-                FROM {stage_path}) FILE_FORMAT=(TYPE=JSON) ON_ERROR=ABORT_STATEMENT FORCE=FALSE''')
+            cursor.execute(f'''COPY INTO {temp} FROM (
+                SELECT $1:report_key::VARCHAR, $1:source_id::VARCHAR,
+                    TRY_TO_TIMESTAMP_TZ($1:source_received_at::VARCHAR), $1:payload,
+                    $1:record_hash::VARCHAR, $1:batch_id::VARCHAR, $1:source_file::VARCHAR,
+                    CURRENT_TIMESTAMP() FROM {stage}
+            ) FILE_FORMAT=(TYPE=JSON) ON_ERROR=ABORT_STATEMENT''')
             cursor.fetchall()
-            cursor.execute(f'SELECT COUNT(*), COUNT(DISTINCT SOURCE_ORDINAL), COUNT(DISTINCT SNAPSHOT_ID) FROM {temp}')
-            total, unique, snapshots = cursor.fetchone()
-            if total != meta['rows'] or unique != total or (total and snapshots != 1):
-                raise ValueError(f'{endpoint}: landing row/key reconciliation failed')
-            cursor.execute(f'SELECT COUNT(*) FROM {temp} WHERE SNAPSHOT_ID<>%s OR SOURCE_ORDINAL<0 OR SOURCE_ORDINAL>=%s', (snapshot_id, meta['rows']))
+            cursor.execute(f'SELECT COUNT(*), COUNT(DISTINCT REPORT_KEY), COUNT_IF(SOURCE_ID IS NULL) FROM {temp}')
+            total, unique, missing = cursor.fetchone()
+            if total != meta['rows'] or unique != total or missing:
+                raise ValueError(f'{endpoint}: invalid landing counts, keys or IDs')
+            cursor.execute(f'SELECT COUNT(*) FROM {temp} WHERE BATCH_ID<>%s OR REPORT_KEY IS NULL OR RECORD_HASH IS NULL OR SOURCE_FILE IS NULL', (run['batch_id'],))
             if cursor.fetchone()[0]:
-                raise ValueError('Landing snapshot or ordinal range differs')
-            # A previous partial insertion is allowed only if every existing key agrees.
-            cursor.execute(f'''SELECT COUNT(*) FROM {table} t JOIN {temp} s
-                ON t.SNAPSHOT_ID=s.SNAPSHOT_ID AND t.SOURCE_ORDINAL=s.SOURCE_ORDINAL
-                WHERE t.RECORD_HASH<>s.RECORD_HASH OR t.PAYLOAD<>s.PAYLOAD
-                OR t.SOURCE_FILE_SHA256<>s.SOURCE_FILE_SHA256''')
+                raise ValueError('Landing batch metadata is invalid')
+            if endpoint != 'users':
+                cursor.execute(f'SELECT COUNT(*) FROM {temp} WHERE SOURCE_RECEIVED_AT IS NULL')
+                if cursor.fetchone()[0]:
+                    raise ValueError(f'{endpoint}: missing/invalid receipt timestamps')
+            # A hash key must never silently replace different contents.
+            cursor.execute(f'''SELECT COUNT(*) FROM {table} t JOIN {temp} s USING(REPORT_KEY)
+                WHERE t.PAYLOAD <> s.PAYLOAD OR t.RECORD_HASH <> s.RECORD_HASH''')
             if cursor.fetchone()[0]:
-                raise ValueError('Existing warehouse key has different content; refusing overwrite')
+                raise ValueError('Existing report key has different contents')
         cursor.execute('BEGIN')
         try:
+            inserted = {}
             for endpoint, temp in landing.items():
-                table = endpoint.upper()
-                values = ', '.join('s.' + column.strip() for column in columns.split(','))
-                cursor.execute(f'''MERGE INTO {table} t USING {temp} s
-                    ON t.SNAPSHOT_ID=s.SNAPSHOT_ID AND t.SOURCE_ORDINAL=s.SOURCE_ORDINAL
-                    WHEN NOT MATCHED THEN INSERT ({columns}) VALUES ({values})''')
-                cursor.execute(f'''SELECT COUNT(*) FROM {temp} s LEFT JOIN {table} t
-                    ON t.SNAPSHOT_ID=s.SNAPSHOT_ID AND t.SOURCE_ORDINAL=s.SOURCE_ORDINAL
-                    WHERE t.SNAPSHOT_ID IS NULL OR t.RECORD_HASH<>s.RECORD_HASH OR t.PAYLOAD<>s.PAYLOAD
-                    OR NOT EQUAL_NULL(t.SOURCE_ID,s.SOURCE_ID)
-                    OR NOT EQUAL_NULL(t.SOURCE_RECEIVED_AT,s.SOURCE_RECEIVED_AT)
-                    OR t.SOURCE_FILE<>s.SOURCE_FILE OR t.SOURCE_FILE_SHA256<>s.SOURCE_FILE_SHA256''')
+                table = TABLES[endpoint]
+                if endpoint == 'users':
+                    # Users are a full current-state capture, not an event stream.
+                    cursor.execute(f'DELETE FROM {table}')
+                    cursor.execute(f'INSERT INTO {table} SELECT * FROM {temp}')
+                else:
+                    cursor.execute(f'''MERGE INTO {table} t USING {temp} s
+                        ON t.REPORT_KEY=s.REPORT_KEY
+                        WHEN NOT MATCHED THEN INSERT
+                        (REPORT_KEY,SOURCE_ID,SOURCE_RECEIVED_AT,PAYLOAD,RECORD_HASH,BATCH_ID,SOURCE_FILE,INGESTED_AT)
+                        VALUES (s.REPORT_KEY,s.SOURCE_ID,s.SOURCE_RECEIVED_AT,s.PAYLOAD,
+                                s.RECORD_HASH,s.BATCH_ID,s.SOURCE_FILE,s.INGESTED_AT)''')
+                inserted[endpoint] = cursor.rowcount
+                cursor.execute(f'''SELECT COUNT(*) FROM {temp} s LEFT JOIN {table} t USING(REPORT_KEY)
+                    WHERE t.REPORT_KEY IS NULL OR t.PAYLOAD <> s.PAYLOAD
+                    OR NOT EQUAL_NULL(t.SOURCE_RECEIVED_AT,s.SOURCE_RECEIVED_AT)''')
                 if cursor.fetchone()[0]:
-                    raise ValueError(f'{endpoint}: warehouse payload/metadata integrity mismatch')
-            counts = validate_counts(cursor, manifest)
-            cursor.execute('''INSERT INTO INGESTION_SNAPSHOTS
-                SELECT %s, PARSE_JSON(%s), 'COMPLETE', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()''',
-                (snapshot_id, json.dumps(manifest)))
+                    raise ValueError('RAW contents do not match landing records')
+            cursor.execute('''INSERT INTO INGESTION_RUNS
+                SELECT %s,TO_TIMESTAMP_TZ(%s),TO_TIMESTAMP_TZ(%s),'RAW_LOADED',CURRENT_TIMESTAMP(),NULL''',
+                (run['batch_id'], run['receipt_cutoff'], run['received_since']))
             cursor.execute('COMMIT')
         except Exception:
             cursor.execute('ROLLBACK')
             raise
-        return {'snapshot_id': snapshot_id, 'status': 'LOADED', 'counts': counts,
-                'integrity': 'All landing payloads, receipt metadata, hashes, ordinals and file lineage matched RAW'}
+    return {'status': 'RAW_LOADED', 'batch_id': run['batch_id'], 'inserted_rows': inserted}
 
 
-def validate_counts(cursor, manifest):
-    counts = {}
-    for endpoint, meta in manifest['endpoints'].items():
-        if endpoint not in {'drives', 'warnings', 'users'}:
-            raise ValueError('Unsupported endpoint')
-        cursor.execute(f'''SELECT COUNT(*), COUNT(DISTINCT SOURCE_ORDINAL)
-            FROM {endpoint.upper()} WHERE SNAPSHOT_ID=%s''', (manifest['snapshot_id'],))
-        total, unique = cursor.fetchone()
-        if total != meta['rows'] or total != unique:
-            raise ValueError(f'{endpoint}: RAW count/ordinal reconciliation failed')
-        counts[endpoint] = total
-    return counts
-
-
-def reconcile_notebook(connection, manifest):
-    """Read-only CTEs reconcile the explicitly frozen baseline, not dbt models."""
-    cutoff = manifest['identity']['analysis_receipt_cutoff_utc']
-    if manifest['identity']['purpose'] != 'FULL_BASELINE' or cutoff != '2026-10-27T15:21:56.773109+00:00':
-        raise ValueError('Notebook reference totals apply only to the approved full baseline cutoff')
-    snapshot = manifest['snapshot_id']
+def complete_run(connection, batch_id):
+    """Advance the warehouse checkpoint only after dbt models and tests succeed."""
     with connection.cursor() as cursor:
-        counts = validate_counts(cursor, manifest)
-        summaries = {}
-        for endpoint in ('drives','warnings','users'):
-            table = endpoint.upper()
-            cursor.execute(f'''SELECT COUNT(*), COUNT_IF(SOURCE_ID IS NULL),
-                COUNT_IF(PAYLOAD:received_at IS NOT NULL AND SOURCE_RECEIVED_AT IS NULL),
-                COUNT(DISTINCT RECORD_HASH)
-                FROM {table} WHERE SNAPSHOT_ID=%s''', (snapshot,))
-            total, missing_id, invalid_receipt, distinct_hashes = cursor.fetchone()
-            summaries[endpoint] = dict(rows=total, missing_ids=missing_id or 0,
-                                       invalid_receipts=invalid_receipt or 0, distinct_record_hashes=distinct_hashes)
-            if missing_id or invalid_receipt:
-                raise ValueError(f'{endpoint}: unexpected missing identifiers/invalid receipts')
-        base = '''WITH reports AS (
-            SELECT *, PAYLOAD:session_id::VARCHAR AS SESSION_ID,
-                TO_JSON(OBJECT_DELETE(PAYLOAD,'received_at')) AS BUSINESS_JSON
-            FROM DRIVES WHERE SNAPSHOT_ID=%s AND SOURCE_RECEIVED_AT<=TO_TIMESTAMP_TZ(%s)
-        ), identities AS (
-            SELECT SESSION_ID, COUNT(*) AS REPORT_COUNT, COUNT(DISTINCT BUSINESS_JSON) AS BUSINESS_VERSIONS
-            FROM reports GROUP BY SESSION_ID
-        ), canonical AS (
-            SELECT r.* FROM reports r JOIN identities i USING(SESSION_ID)
-            WHERE i.BUSINESS_VERSIONS=1
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY r.SESSION_ID ORDER BY r.SOURCE_RECEIVED_AT,r.SOURCE_ORDINAL)=1
-        )'''
-        cursor.execute(base + ''' SELECT (SELECT COUNT(*) FROM reports), COUNT(*),
-            (SELECT COUNT(*) FROM identities WHERE BUSINESS_VERSIONS>1) FROM canonical''', (snapshot,cutoff))
-        drive_reports, sessions, conflicts = cursor.fetchone()
-        if (drive_reports, sessions, conflicts) != (224194,219848,0):
-            raise ValueError('Canonical drive reconciliation differs from notebook reference')
-        cursor.execute('''SELECT COUNT(*),COUNT(DISTINCT SOURCE_ID) FROM WARNINGS
-            WHERE SNAPSHOT_ID=%s AND SOURCE_RECEIVED_AT<=TO_TIMESTAMP_TZ(%s)''',(snapshot,cutoff))
-        warnings, warning_ids = cursor.fetchone()
-        if (warnings,warning_ids) != (315601,315601):
-            raise ValueError('Warning reconciliation differs from notebook reference')
-        cursor.execute('ALTER SESSION SET WEEK_START=1')
-        cursor.execute(base + ''' SELECT DATE_TRUNC('WEEK',TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR))::DATE AS WEEK,
-            COUNT(*) AS DRIVES, COUNT_IF(PAYLOAD:connection_count::NUMBER>1) AS MULTI
-            FROM canonical
-            WHERE TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR)>='2026-10-12'::TIMESTAMP_NTZ
-              AND TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR)<'2026-10-26'::TIMESTAMP_NTZ
-            GROUP BY WEEK ORDER BY WEEK''',(snapshot,cutoff))
-        weeks = [{'week':str(row[0]),'eligible_drives':row[1],'multiple_connection_drives':row[2]} for row in cursor.fetchall()]
-        expected = [{'week':'2026-10-12','eligible_drives':21711,'multiple_connection_drives':1519},
-                    {'week':'2026-10-19','eligible_drives':21595,'multiple_connection_drives':1422}]
-        if weeks != expected:
-            raise ValueError('Weekly numerator/denominator differs from notebook reference')
-        cursor.execute(base + ''' SELECT COUNT(*) FROM WARNINGS w JOIN canonical d
-            ON w.SOURCE_ID IS NOT NULL AND w.PAYLOAD:session_id::VARCHAR=d.SESSION_ID
-            WHERE w.SNAPSHOT_ID=%s AND w.SOURCE_RECEIVED_AT<=TO_TIMESTAMP_TZ(%s)''',
-            (snapshot,cutoff,snapshot,cutoff))
-        matched = cursor.fetchone()[0]
-        if matched != 315449:
-            raise ValueError('Canonical warning join differs from notebook reference')
-        # Explicitly check duration/count eligibility rather than assuming all reports pass.
-        cursor.execute(base + ''' SELECT COUNT(*) FROM canonical WHERE
-            TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR) IS NULL
-            OR TRY_TO_TIMESTAMP_NTZ(PAYLOAD:ended_at::VARCHAR) IS NULL
-            OR TRY_TO_DOUBLE(PAYLOAD:duration_s::VARCHAR) IS NULL
-            OR TRY_TO_DOUBLE(PAYLOAD:duration_s::VARCHAR)<=0
-            OR TRY_TO_DOUBLE(PAYLOAD:connection_count::VARCHAR) IS NULL
-            OR TRY_TO_DOUBLE(PAYLOAD:connection_count::VARCHAR)<1
-            OR MOD(TRY_TO_DOUBLE(PAYLOAD:connection_count::VARCHAR),1)<>0
-            OR DATEDIFF('SECOND',TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR),TRY_TO_TIMESTAMP_NTZ(PAYLOAD:ended_at::VARCHAR))<0
-            OR ABS(TRY_TO_DOUBLE(PAYLOAD:duration_s::VARCHAR)-DATEDIFF('SECOND',TRY_TO_TIMESTAMP_NTZ(PAYLOAD:started_at::VARCHAR),TRY_TO_TIMESTAMP_NTZ(PAYLOAD:ended_at::VARCHAR)))>1''',
-            (snapshot,cutoff))
-        excluded = cursor.fetchone()[0]
-        if excluded:
-            raise ValueError('Unexpected metric eligibility exclusions')
-    return {'snapshot_id':snapshot,'status':'RECONCILED','raw_counts':counts,'metadata':summaries,
-            'analysis_receipt_cutoff_utc':cutoff,'drive_reports_by_cutoff':drive_reports,'canonical_sessions':sessions,
-            'preserved_replay_rows_by_cutoff':drive_reports-sessions,'business_conflicts':conflicts,
-            'warnings_by_cutoff':warnings,'matched_warnings':matched,'eligible_exclusions':excluded,'weeks':weeks}
+        cursor.execute("UPDATE INGESTION_RUNS SET STATUS='COMPLETE',COMPLETED_AT=CURRENT_TIMESTAMP() "
+                       "WHERE BATCH_ID=%s", (batch_id,))

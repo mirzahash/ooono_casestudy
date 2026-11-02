@@ -1,7 +1,6 @@
-"""Focused invariants: pagination checkpoints, immutable inputs, receipt preservation."""
+"""Pagination recovery, stable report keys and RAW transaction safety."""
 import gzip
 import json
-import shutil
 import sys
 import tempfile
 import unittest
@@ -10,9 +9,8 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from api import EventsAPI
-from ingest import verify_snapshot
+from ingest import prepare_records
 
-TEST_SNAPSHOT = Path('data/snapshots/215eb2d18dd04f006286cc90a97ad13fe6086d6714ffcd405656b858b0c4e402')
 
 
 class FakeAPI(EventsAPI):
@@ -57,23 +55,74 @@ class PaginationTests(unittest.TestCase):
             self.assertFalse(json.loads(Path(directory, 'checkpoint.json').read_text())['complete'])
 
 
-@unittest.skipUnless(TEST_SNAPSHOT.exists(), 'Local frozen test snapshot is not distributed with the repo')
-class SnapshotTests(unittest.TestCase):
-    def test_repeated_source_receipts_survive_as_separate_ordinals(self):
-        manifest = verify_snapshot(TEST_SNAPSHOT)
-        with gzip.open(TEST_SNAPSHOT / manifest['endpoints']['drives']['load_file'], 'rt') as stream:
-            rows = [json.loads(line) for line in stream]
-        self.assertEqual(len({r['source_ordinal'] for r in rows}), len(rows))
-        self.assertLess(len({r['source_id'] for r in rows}), len(rows))
+class ReportKeyTests(unittest.TestCase):
+    def write(self, directory, records, batch):
+        path = Path(directory) / (batch + '.gz')
+        prepare_records(records, 'drives', path, batch, 'saved/pages')
+        with gzip.open(path, 'rt') as stream:
+            return [json.loads(line) for line in stream]
 
-    def test_changed_source_file_is_rejected(self):
-        with tempfile.TemporaryDirectory() as directory:
-            copy = Path(directory) / 'snapshot'
-            shutil.copytree(TEST_SNAPSHOT, copy)
-            with (copy / 'sources/drives.json').open('a') as stream:
-                stream.write(' ')
-            with self.assertRaisesRegex(ValueError, 'checksum'):
-                verify_snapshot(copy)
+    def test_keys_are_stable_across_batches_and_changed_receipts_are_preserved(self):
+        first = {'session_id':'A', 'received_at':'2026-10-27T10:00:00Z', 'connection_count':2}
+        repeat = {**first, 'received_at':'2026-10-27T10:01:00Z'}
+        conflict = {**first, 'connection_count':3}
+        with tempfile.TemporaryDirectory() as folder:
+            a = self.write(folder, [first, first, repeat], 'a')
+            b = self.write(folder, [first, first, first, repeat, conflict], 'b')
+            akeys = {r['report_key'] for r in a}
+            bkeys = {r['report_key'] for r in b}
+            self.assertEqual(len(akeys), 3)
+            self.assertEqual(len(bkeys - akeys), 2)
+            self.assertEqual([r['payload'] for r in b], [first,first,first,repeat,conflict])
+
+    def test_only_incoming_records_are_written_and_empty_batch_is_valid(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(self.write(folder, [], 'empty'), [])
+            row = self.write(folder, [{'session_id':'new'}], 'new')
+            self.assertEqual(len(row), 1)
+            self.assertEqual(row[0]['source_id'], 'new')
+
+class RawLoadTests(unittest.TestCase):
+    def test_invalid_batch_id_is_rejected_before_database_work(self):
+        from unittest.mock import Mock
+        from snowflake_io import load_batch
+        connection = Mock()
+        with self.assertRaisesRegex(ValueError, 'batch ID'):
+            load_batch(connection, {'batch_id':"bad'; SQL"}, {})
+        connection.cursor.assert_not_called()
+
+    def test_missing_endpoint_is_rejected_before_database_work(self):
+        from unittest.mock import Mock
+        from snowflake_io import load_batch
+        connection = Mock()
+        with self.assertRaisesRegex(ValueError, 'three endpoints'):
+            load_batch(connection, {'batch_id':'a'*64}, {})
+        connection.cursor.assert_not_called()
+
+    def test_registry_failure_rolls_back_report_inserts(self):
+        from unittest.mock import MagicMock, patch
+        from snowflake_io import load_batch
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = []
+        def fetchone():
+            if 'COUNT(DISTINCT REPORT_KEY)' in cursor.execute.call_args.args[0]:
+                return (1, 1, 0)
+            return (0,)
+        cursor.fetchone.side_effect = fetchone
+        def execute(sql, *args):
+            if 'INSERT INTO INGESTION_RUNS' in sql:
+                raise RuntimeError('simulated registry failure')
+        cursor.execute.side_effect = execute
+        files = {ep:{'file':'/tmp/example.json.gz','rows':1} for ep in ['drives','warnings','users']}
+        run = {'batch_id':'a'*64,'receipt_cutoff':'2026-10-30T00:00:00+00:00','received_since':None}
+        with patch('snowflake_io.last_success', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'registry failure'):
+                load_batch(connection, run, files)
+        statements = [c.args[0] for c in cursor.execute.call_args_list]
+        self.assertIn('BEGIN', statements)
+        self.assertIn('ROLLBACK', statements)
+        self.assertNotIn('COMMIT', statements)
 
 
 if __name__ == '__main__':

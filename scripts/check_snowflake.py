@@ -1,4 +1,8 @@
-"""Read-only connection and object checks; never create or modify cloud objects."""
+"""Check configuration or existing Snowflake access without changing tables.
+
+Run check_snowflake.py [--check-config]; the flag avoids network login.
+Print identity/access diagnostics; exit 0 on success, 2 for config errors,
+1 for connection errors. Visibility does not prove write permission."""
 
 import argparse
 import json
@@ -7,13 +11,19 @@ import sys
 from snowflake_io import connect, quoted_identifier, read_config
 
 
+# Run a diagnostic query and return its rows with column names.
 def inspect(cursor, sql):
+    """Execute a diagnostic SELECT/SHOW and return rows as named dictionaries."""
     cursor.execute(sql)
+    # A comprehension names each returned column; zip associates each tuple value
+    # with its name. This makes connector rows suitable for JSON diagnostics.
     columns = [item[0].lower() for item in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
+# Check Snowflake settings and access without changing stored data.
 def main():
+    """Check local settings or connect and inspect existing object/role access."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-config", action="store_true", help="Validate local settings without logging in")
     args = parser.parse_args()
@@ -27,6 +37,7 @@ def main():
         return 0
     try:
         # Authenticate before selecting cloud objects that may not exist yet.
+        # Filter configuration with a dictionary comprehension: identify the session
         login_config = {key: value for key, value in config.items() if key not in {"warehouse", "database", "schema"}}
         with connect(login_config) as connection:
             with connection.cursor() as cursor:

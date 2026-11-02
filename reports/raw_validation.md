@@ -1,3 +1,5 @@
+> Historical validation of the submitted snapshot implementation. For the simplified feature branch, see [simplification validation](simplification_validation.md).
+
 # RAW ingestion validation
 
 Status: PASSED. No dbt or Steep models have been created.

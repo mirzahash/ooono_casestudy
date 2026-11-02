@@ -7,7 +7,7 @@
         payload:device_time::varchar as device_time_raw,
         try_to_timestamp_ntz(payload:device_time::varchar) as device_time,
         first_received_at, last_received_at, report_count,
-        snapshot_id, source_ordinal, record_hash, source_file, source_file_sha256, ingested_at
+        {{ run_id_literal() }}::varchar as snapshot_id, report_key, record_hash, source_file, ingested_at
     from agreed
 )
 select *, device_time is null as has_timestamp_parse_error,

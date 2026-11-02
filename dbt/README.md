@@ -1,47 +1,21 @@
-# OOONO release-health dbt project
+# dbt project
 
-This directory is the dbt project root. Repository-level Python ingestion,
-environments, and reports remain outside it.
-
-```text
-dbt/
-├── dbt_project.yml
-├── profiles.yml.example
-├── models/
-│   ├── staging/ooono/       # source definitions, typed/canonical source views
-│   ├── intermediate/        # drive-level warning aggregation and eligibility
-│   └── marts/               # weekly release-health table
-├── macros/
-└── tests/                   # singular dbt data tests
-```
-
-From the repository root:
+Run from the repository root:
 
 ```sh
 .venv-dbt/bin/python scripts/run_dbt.py debug
 .venv-dbt/bin/python scripts/run_dbt.py build
 ```
 
-The runner supplies this project directory, loads the repository's ignored `.env`,
-and uses the dedicated OOONO_DBT role. The generated local `profiles.yml`, `target/`,
-and `logs/` are ignored. Requirements remain in repository-level
-`requirements-dbt.txt` so the isolated environment can be reproduced.
+Build uses the latest successful warehouse ingestion cutoff. The full pipeline
+supplies candidate run_id/receipt_cutoff variables before marking it successful.
 
-The staging → intermediate → marts layers follow dbt's project-structure guidance.
-Source folders group staging models and their YAML definitions. Staging uses views;
-the drive intermediate and mart use tables for straightforward inspection and reuse.
-Canonical replay collapse remains in staging as an explicit case-study convention
-from the approved metric contract. dbt's general guidance avoids grain-changing
-aggregation in staging; here the source already describes drive-session reports,
-and agreeing replays are collapsed to that documented canonical grain. No metric
-or model-grain changes are part of this layout refactor.
+Sources are append-only RAW.DRIVE_REPORTS and WARNING_REPORTS, plus replace-current
+USER_PROFILES. No snapshot selection is needed. Staging types reports and collapses
+agreeing business payloads; intermediate aggregates warnings before joining drives;
+the weekly mart exposes complete-week metrics. Model grains/definitions are in YAML.
 
-The custom schema macro intentionally targets the existing STAGING/ANALYTICS
-schemas in this single-user case. A team deployment should add isolated development
-schemas. Snapshot/cutoff defaults are explicit vars, never latest-snapshot lookups.
-
-References:
-
-- [Project structure](https://docs.getdbt.com/best-practices/how-we-structure/1-guide-overview)
-- [Staging conventions](https://docs.getdbt.com/best-practices/how-we-structure/2-staging)
-- [Project root and --project-dir](https://docs.getdbt.com/reference/dbt_project.yml)
+The 23-column mart schema is retained for Steep. SNAPSHOT_ID now labels the
+analytical run. STEEP_READONLY grants are reapplied by dbt. See
+[design](../docs/dbt_design.md), [setup](../docs/fresh_laptop_setup.md), and
+[validation](../reports/simplification_validation.md).

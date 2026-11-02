@@ -40,11 +40,11 @@ The notebook displays a +/-2-hour clock-shift sensitivity check, not a timezone
 conversion. Compare device end clock with UTC receipt clock only as an offset/lag
 diagnostic, not latency. Warning clock anomalies are checked separately.
 
-Apply the saved `scope.json` UTC receipt cutoff before deduplication. Prior weeks
-may change as reports arrive. Show first-observed receipts after the following
-Monday and data freshness. A complete calendar week is not necessarily a fully
-arrived cohort. The incremental cache refresh has a 24-hour overlap and cannot
-guarantee capture of older backdated receipts or deletions.
+Apply the run's UTC receipt cutoff before deduplication. Prior weeks may change
+as reports arrive. A complete calendar week is not necessarily a fully arrived
+cohort. The historical notebook used its saved scope.json cutoff. The simplified
+pipeline starts at the last successful receipt cutoff with no automatic overlap;
+backdated API availability can be missed and needs explicit reconciliation.
 
 ## Interpretation
 
@@ -106,5 +106,5 @@ warnings remain. There are no observed business-field conflicts. All canonical
 sessions pass the stated numeric/time eligibility rules in this snapshot.
 
 These rules and counts refer to this snapshot, not a claim about future data.
-Revalidate eligibility/conflicts on each new snapshot. Week comparisons use
+Revalidate eligibility/conflicts on each ingestion run. Week comparisons use
 12–18 and 19–25 October 2026, excluding the current incomplete calendar week.

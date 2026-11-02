@@ -15,7 +15,7 @@
         try_to_double(payload:duration_s::varchar) as duration_s,
         try_to_double(payload:connection_count::varchar) as connection_count,
         first_received_at, last_received_at, report_count,
-        snapshot_id, source_ordinal, record_hash, source_file, source_file_sha256, ingested_at
+        {{ run_id_literal() }}::varchar as snapshot_id, report_key, record_hash, source_file, ingested_at
     from agreed
 )
 select *,
