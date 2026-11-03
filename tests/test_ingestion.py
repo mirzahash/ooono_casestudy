@@ -125,5 +125,29 @@ class RawLoadTests(unittest.TestCase):
         self.assertNotIn('COMMIT', statements)
 
 
+    def test_put_preserves_equals_and_spaces_in_local_filename(self):
+        from unittest.mock import MagicMock, patch
+        from snowflake_io import load_batch
+        connection = MagicMock()
+        cursor = connection.cursor.return_value.__enter__.return_value
+        cursor.fetchall.return_value = []
+        statements = []
+        def execute(sql, *args):
+            statements.append(sql)
+            if sql.startswith('PUT '):
+                raise RuntimeError('stop after inspecting upload')
+        cursor.execute.side_effect = execute
+        path = Path('/tmp/extraction_date=2026-11-03/a run/drives.json.gz')
+        files = {ep:{'file':str(path),'rows':1} for ep in ['drives','warnings','users']}
+        run = {'batch_id':'a'*64,'receipt_cutoff':'2026-11-03T00:00:00+00:00','received_since':None}
+        with patch('snowflake_io.last_success', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'stop after inspecting'):
+                load_batch(connection, run, files)
+        upload = next(sql for sql in statements if sql.startswith('PUT '))
+        self.assertIn('file://' + path.resolve().as_posix(), upload)
+        self.assertNotIn('%3D', upload)
+        self.assertNotIn('%20', upload)
+
+
 if __name__ == '__main__':
     unittest.main()

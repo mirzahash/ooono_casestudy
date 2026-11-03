@@ -130,7 +130,8 @@ def load_batch(connection, run, files):
             temp = 'LANDING_' + uuid.uuid4().hex.upper()
             landing[endpoint] = temp
             cursor.execute(f'CREATE TEMPORARY TABLE {temp} LIKE {table}')
-            upload = Path(meta['file']).resolve().as_uri().replace("'", "''")
+            # PUT expects the literal local path, not URL escapes such as %3D for '='.
+            upload = ('file://' + Path(meta['file']).resolve().as_posix()).replace("'", "''")
             stage = f"@REPORT_LOAD_STAGE/{run['batch_id']}/{endpoint}/"
             cursor.execute(f"PUT '{upload}' {stage} AUTO_COMPRESS=FALSE OVERWRITE=TRUE")
             cursor.fetchall()

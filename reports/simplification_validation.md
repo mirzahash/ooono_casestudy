@@ -105,3 +105,17 @@ success. No claim of distributed exactly-once processing is made.
 
 Local detailed evidence is ignored under data/simplification_validation/ and
 data/landing/simplified_live_demo/. No individual source records are published here.
+
+## 3 November: default-folder upload fix
+
+A normal run exposed Snowflake error 253006: Path.as_uri() encoded '=' in
+extraction_date=YYYY-MM-DD as '%3D', which the upload connector treated literally.
+PUT now receives the quoted, unencoded local file path. A regression test covers
+both '=' and spaces. Future CLI failures include errno/sqlstate/query ID when
+available, without printing connector messages that may contain sensitive details.
+
+Resumed the failed run using its existing pages (no new API extraction). RAW
+loading and all five dbt models completed, with 26 passing tests and two expected
+warning tests (172 warning-clock anomalies and eight orphans). The run reached
+COMPLETE. All 14 offline tests pass. The earlier custom demo directory lacked '='
+and therefore had not exercised this path case.

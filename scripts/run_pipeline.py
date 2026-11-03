@@ -98,5 +98,9 @@ if __name__ == '__main__':
     except Exception as error:
         # Keep connector details and credentials out of console errors.
         message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Operation failed; sensitive details hidden'
+        codes = {name: getattr(error, name, None) for name in ('errno', 'sqlstate', 'sfqid')}
+        codes = {name: value for name, value in codes.items() if value is not None}
         print(f'{type(error).__name__}: {message}', file=sys.stderr)
+        if codes:
+            print(json.dumps(codes), file=sys.stderr)
         raise SystemExit(1)
