@@ -31,6 +31,7 @@ USER_PROFILES is replace-current. INGESTION_RUNS holds the successful watermark.
 COPY validates before a transaction inserts unseen reports and the run registry
 entry together. A successful load does not imply successful dbt publication.
 
-Legacy snapshot tables/files are not deleted. The final mart schema and business
-definitions remain unchanged; SNAPSHOT_ID is a compatibility label for the run.
+Legacy snapshot tables are not used; old local snapshot files are archived outside
+the project. The final mart schema and business definitions remain unchanged;
+SNAPSHOT_ID is a compatibility label for the run.
 See [run guide](pipeline_run_guide.md) and [validation](../reports/simplification_validation.md).

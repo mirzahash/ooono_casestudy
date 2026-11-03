@@ -69,4 +69,4 @@ or exactly reproduce RAW as it existed before backdated reports were ingested.
 - RAW.INGESTION_RUNS: shared successful cutoff and load/completion status.
 
 There are no newly generated cumulative snapshots, parent manifests, or local
-pipeline_state.json checkpoints. Legacy files remain unused for rollback.
+pipeline_state.json checkpoints. Obsolete local work is archived outside the project.

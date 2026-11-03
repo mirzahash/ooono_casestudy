@@ -52,7 +52,7 @@ No notebook is required to operate the pipeline.
 | `scripts/setup_dbt.py` | One-time additive table and role setup |
 | `scripts/check_snowflake.py` | Read-only diagnostics |
 | `dbt/models/` | Staging views, one-row-per-drive table, weekly mart |
-| `notebooks/` | Historical exploration and validation; not production entry points |
+| `notebooks/` | API exploration, profiling and weekly findings; not production entry points |
 
 ## Metrics and assumptions
 
@@ -85,7 +85,8 @@ Drive/warning history is stored once by report key; only current users are repla
 Snowflake manages micro-partitions, with a typed receipt timestamp available for
 filtering. Landing files are organized by extraction date, not claimed receipt date.
 Local pages support recovery; there are no parent snapshots or manifests in the
-operating path. Old snapshot files/tables are retained only for rollback/reference.
+operating path. Obsolete local snapshot work has been archived outside the project.
+Legacy warehouse tables are not used and can be cleaned up separately.
 
 Staging remains views. Intermediate and mart remain full rebuilds at this dataset
 size, which handles captured late reports without incremental update complexity.
@@ -111,8 +112,7 @@ sessions and the weekly platform numerators/denominators recorded in the validat
 report. New captures can revise historical results. Reference tests run only when explicitly requested with
 `validate_baseline: true`; normal structural and consistency tests always run.
 See [simplification validation](reports/simplification_validation.md) for the new
-implementation's checks. Older validation reports describe the submitted snapshot
-implementation and are retained as historical evidence.
+implementation's checks, including the historical baseline reconciliation.
 
 ## Intentional exclusions and OOONO deployment
 

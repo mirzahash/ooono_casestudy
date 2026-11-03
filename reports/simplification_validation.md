@@ -11,8 +11,9 @@ replace-current capture. No automatic 24-hour lookback, parent manifests, snapsh
 merge or hardcoded baseline is in the runtime path.
 
 New tables: RAW.DRIVE_REPORTS, WARNING_REPORTS, USER_PROFILES, INGESTION_RUNS.
-Legacy DRIVES/WARNINGS/USERS/INGESTION_SNAPSHOTS and local snapshots are retained
-for rollback and historical evidence, not used by the new dbt sources.
+Legacy DRIVES/WARNINGS/USERS/INGESTION_SNAPSHOTS are not used by the new dbt
+sources. They were left intact during migration; obsolete local snapshot files
+were subsequently archived outside the project.
 
 ## Frozen-baseline reconciliation
 
@@ -99,7 +100,8 @@ success. No claim of distributed exactly-once processing is made.
 - Full dbt rebuilds remain. Reduced RAW inserts are demonstrated; Snowflake monetary
   savings and production-scale scan/runtime reductions have not been measured.
 - Exact historical replay is not guaranteed by receipt cutoff alone after future
-  backdated ingestion or changes to current users. Original snapshots remain archived.
+  backdated ingestion or changes to current users. Original local snapshots are archived
+  outside the project.
 
 Local detailed evidence is ignored under data/simplification_validation/ and
 data/landing/simplified_live_demo/. No individual source records are published here.

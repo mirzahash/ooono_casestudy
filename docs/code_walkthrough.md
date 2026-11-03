@@ -38,7 +38,7 @@ run_pipeline.py
 - There is no automatic 24-hour lookback: saved comparisons did not establish its
   necessity. Backdated availability remains a risk; --since/--full reconcile it.
 - RAW reports are stored once. We removed cumulative snapshot copying. Old snapshot
-  tables/files are kept only to verify results and permit rollback.
+  warehouse tables are unused; obsolete local files are archived outside the project.
 - Full dbt rebuilds are simple at this size, but cost/runtime need measurement before
   claiming production scalability. Incremental intermediate logic remains deferred.
 - The RAW transaction does not make the whole dbt build atomic. Concurrent distributed
