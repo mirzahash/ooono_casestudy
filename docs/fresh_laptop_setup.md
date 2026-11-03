@@ -9,15 +9,12 @@ No copied local baseline, snapshot, or checkpoint is needed.
 ```sh
 git clone https://github.com/mirzahash/ooono_casestudy.git
 cd ooono_casestudy
-git switch feature/simplify-batch-ingestion
 python3.14 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 python3.12 -m venv .venv-dbt
 .venv-dbt/bin/python -m pip install -r requirements-dbt.txt
 cp -n .env.example .env
 ```
-
-The branch must be pushed before it can be checked out on another laptop.
 
 ## 2. Configure authentication
 
