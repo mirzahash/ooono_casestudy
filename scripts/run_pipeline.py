@@ -41,7 +41,7 @@ def pipeline(args):
         api = EventsAPI()
         checkpoints = {}
         for endpoint in ENDPOINTS:
-            # Completed pages are reused when resuming; no parent snapshot is read.
+            # Completed pages are reused when resuming
             checkpoints[endpoint] = api.extract(
                 endpoint, run_dir / endpoint,
                 received_since=run['received_since'] if endpoint != 'users' else None)
@@ -51,8 +51,6 @@ def pipeline(args):
         atomic_json(run_dir / 'load_result.json', result)
         run['status'] = 'RAW_LOADED'
         atomic_json(state, run)
-        # Explicit variables select this cutoff. SNAPSHOT_ID is retained in the mart
-        # only for schema compatibility; its value now labels this analytical run.
         variables = {'run_id': run['batch_id'], 'receipt_cutoff': run['receipt_cutoff']}
         target = run_dir / 'dbt_target'
         command = [str(ROOT / '.venv-dbt/bin/python'), str(ROOT / 'scripts/run_dbt.py'),
@@ -98,9 +96,5 @@ if __name__ == '__main__':
     except Exception as error:
         # Keep connector details and credentials out of console errors.
         message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Operation failed; sensitive details hidden'
-        codes = {name: getattr(error, name, None) for name in ('errno', 'sqlstate', 'sfqid')}
-        codes = {name: value for name, value in codes.items() if value is not None}
         print(f'{type(error).__name__}: {message}', file=sys.stderr)
-        if codes:
-            print(json.dumps(codes), file=sys.stderr)
         raise SystemExit(1)
