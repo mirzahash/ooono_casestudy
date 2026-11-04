@@ -1,3 +1,7 @@
+-- What: Compares intermediate session, warning, anomaly and eligibility totals with the original baseline.
+-- Why: Detect changes to historical drive enrichment during a controlled baseline replay.
+-- Scope: runs only with validate_baseline=true and the original baseline data/cutoff.
+-- With the default false setting, this test returns no rows without checking counts.
 -- depends_on: {{ ref('int_drive_connection_behavior') }}
 {% if reference_baseline() %}
 with checks as (

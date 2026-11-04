@@ -6,18 +6,19 @@ interrupted, or bad drive. The source does not expose an explicit outcome flag.
 
 ## Canonical session
 
-Compare every drive field except `received_at` for each nonnull `session_id`.
-If those business fields agree, retain one session, the earliest observed receipt,
-latest observed receipt, and report count. Exclude business-field conflicts and
-missing IDs from the canonical dataset and report their counts. Apply the same
-identity check to `warning_id`. Do not sum warnings after a fan-out join.
+For each nonnull `session_id`, retain the earliest received report, latest observed
+receipt time, and report count. Break receipt-time ties using the report key.
+Repeated baseline reports agree on business fields; no conflicts were observed.
+This ordering does not establish which report would be authoritative if values
+changed. Missing IDs fail a precautionary test. Apply the same selection to
+`warning_id`. Do not sum warnings after a fan-out join.
 
 ## Metric definition
 
 - Numerator: eligible canonical reported sessions with `connection_count > 1`.
 - Denominator: canonical reported sessions with parseable start/end, nonnegative
-  elapsed time, positive numeric duration agreeing with elapsed time within one
-  second, and an integer connection count of at least one.
+  elapsed time, positive numeric duration, and an integer connection count of at least one.
+  These are precautionary eligibility rules, not observed failure categories.
 - Unit: percent of eligible reported sessions; show numerator and denominator.
 - Context: reported drive count, distinct drivers, distinct drivers with a
   multiple-connection session, median duration, and connection-count p95.
@@ -65,7 +66,7 @@ Duration context is the median and p95 of `duration_s` over the same eligible,
 canonical sessions; use seconds, not receipt-clock differences. All-history and
 same-week version comparisons are displayed separately to expose calendar mix.
 
-Warning identity is `warning_id`; collapse only agreeing business records as
+Warning identity is `warning_id`; keep the earliest received report per ID as
 above, retaining receipt metadata. Join warnings to canonical sessions using a
 validated many-to-one `session_id` join. Apply the same saved receipt cutoff to
 both inputs. Count unmatched warnings separately, never attach them arbitrarily.
@@ -106,5 +107,5 @@ warnings remain. There are no observed business-field conflicts. All canonical
 sessions pass the stated numeric/time eligibility rules in this snapshot.
 
 These rules and counts refer to this snapshot, not a claim about future data.
-Revalidate eligibility/conflicts on each ingestion run. Week comparisons use
+Check eligibility on each ingestion run. Week comparisons use
 12–18 and 19–25 October 2026, excluding the current incomplete calendar week.

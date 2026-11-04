@@ -56,7 +56,7 @@ def connect(config):
     options = dict(config)
     mode = options["authenticator"]
     if mode == "SNOWFLAKE_JWT":
-        options["private_key_password"] = (
+        options["private_key_file_pwd"] = (
             os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSWORD")
             or getpass.getpass("Snowflake private-key passphrase: ")
         )

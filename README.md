@@ -64,7 +64,7 @@ No notebook is required to operate the pipeline.
 - Agreeing reports for a session collapse only after removing `received_at`.
   Conflicting business values trigger a blocking test; no arbitrary latest-wins rule.
 - Device timestamps lack offsets, so weeks use provisional device wall-calendar
-  dates. Receipt timestamps are UTC. Current and known partial first weeks are excluded.
+  dates. Receipt timestamps are UTC. The current calendar week is excluded.
 - The API has no documented unique drive-report ID. Ingestion keys use the complete
   payload plus its occurrence number in the extraction. Identical repeats are not
   inserted again; different receipt times/business fields remain separate reports.

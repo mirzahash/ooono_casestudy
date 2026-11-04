@@ -10,7 +10,6 @@ test-paths: [tests]
 
 clean-targets: [target, dbt_packages]
 
-# No hardcoded snapshot or automatic lookback. The pipeline passes the run cutoff.
 vars:
   validate_baseline: false
 

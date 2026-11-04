@@ -1,3 +1,7 @@
+-- What: Compares RAW/staging counts and collapsed reports with the measured original baseline.
+-- Why: Detect changes to historical staging results during a controlled baseline replay.
+-- Scope: runs only with validate_baseline=true and the original baseline data/cutoff.
+-- With the default false setting, this test returns no rows without checking counts.
 -- depends_on: {{ ref('stg_drives') }}
 -- depends_on: {{ ref('stg_warnings') }}
 -- depends_on: {{ ref('stg_users') }}

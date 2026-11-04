@@ -25,8 +25,9 @@ run_pipeline.py
 - **snowflake_io.py:** “Bulk-load to temporary tables, validate, then MERGE missing
   report keys. Repeated retrieval does not repeat RAW inserts. Users are replaced
   from the full current list. A transaction protects RAW and its run record.”
-- **dbt staging:** “Extract/type fields, preserve quality flags and collapse only
-  agreeing reports. A conflict triggers a test instead of arbitrary latest-wins.”
+- **dbt staging:** “Extract/type fields, preserve quality flags and keep one
+  report per ID, using the earliest receipt. Repeated baseline reports agreed. Missing
+  IDs and invalid values still have precautionary checks.”
 - **Intermediate:** “Count warnings before joining, preserving one row per drive.”
 - **Mart:** “Group eligible drives by complete week, platform and version. Use
   summed numerators/denominators for overall share; this is not a failure rate.”

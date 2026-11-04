@@ -1,4 +1,4 @@
--- Grain: one agreeing warning_id; unmatched/invalid-clock warnings are retained.
+-- Grain: one warning_id; unmatched/invalid-clock warnings are retained.
 {{ agreed_records('warnings') }}
 , typed as (
     select source_id as warning_id, payload:session_id::varchar as session_id,
@@ -10,6 +10,5 @@
         {{ run_id_literal() }}::varchar as snapshot_id, report_key, record_hash, source_file, ingested_at
     from agreed
 )
-select *, device_time is null as has_timestamp_parse_error,
-    coalesce(device_time > dateadd(day,2,{{ cutoff_literal() }}::timestamp_ntz),false) as has_future_device_clock
+select *, device_time is null as has_timestamp_parse_error
 from typed

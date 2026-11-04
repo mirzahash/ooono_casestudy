@@ -16,7 +16,7 @@ checkpoints support local recovery; AWS deployment would move them to S3.
 Drive/warning records are stored once using SHA-256 of canonical full payload plus
 its occurrence number. This explicitly assumes content identity because a unique
 drive-receipt ID is not documented. Different business values/receipt times remain
-separate; agreeing session reports collapse later in staging. More identical copies
+separate; repeated session IDs collapse later in staging. More identical copies
 in a later extraction insert only the excess. This is not guaranteed exactly-once
 physical event delivery. Concurrent loaders are not supported.
 

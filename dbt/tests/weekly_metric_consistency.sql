@@ -1,11 +1,11 @@
+-- What: Checks mart drive totals against intermediate aggregates, plus count/rate bounds.
+-- Why: Catch incorrect weekly aggregation, denominators or impossible metric values.
 with boundaries as (
-    select min(started_at)::date as first_date, {{ monday('min(started_at)') }} as first_week,
-        {{ monday("convert_timezone('Europe/Copenhagen', " ~ cutoff_literal() ~ ")::date") }} as current_week
-    from {{ ref('int_drive_connection_behavior') }}
+    select {{ monday("convert_timezone('Europe/Copenhagen', " ~ cutoff_literal() ~ ")::date") }} as current_week
 ), expected as (
     select reporting_week,platform,app_version,count(*) as drives,count_if(is_multi_connection) as multi
     from {{ ref('int_drive_connection_behavior') }} cross join boundaries
-    where is_eligible and reporting_week<current_week and (reporting_week>first_week or first_date=first_week)
+    where is_eligible and reporting_week<current_week
     group by reporting_week,platform,app_version
 ), comparison as (
     select coalesce(e.reporting_week,m.reporting_week) as reporting_week,

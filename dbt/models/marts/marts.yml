@@ -1,16 +1,20 @@
 version: 2
 models:
   - name: mart_weekly_release_health
-    description: "Week x platform x app version. Eligible reported drives only, excluding current and known partial first calendar weeks. Connection behavior is not a confirmed failure rate. Driver counts are not additive across groups."
+    description: "Week x platform x app version. Eligible reported drives only, excluding the current calendar week. Connection behavior is not a confirmed failure rate. Driver counts are not additive across groups."
     columns:
       - name: reporting_week
+        # Every result needs a reporting week.
         data_tests: [not_null]
         description: "Monday of provisional device wall-calendar week."
       - name: platform
+        # Every result needs a platform, including the explicit unknown category.
         data_tests: [not_null]
       - name: app_version
+        # Every result needs an app version, including the explicit unknown category.
         data_tests: [not_null]
       - name: eligible_drives
+        # Every result needs a drive count for the metric denominator.
         data_tests: [not_null]
       - name: multi_connection_share
         description: "0–1 ratio. Overall share must be SUM(multi_connection_drives)/SUM(eligible_drives), not an average of group shares."

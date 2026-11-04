@@ -5,13 +5,17 @@ models:
     columns:
       - name: session_id
         data_tests:
+          # Every intermediate drive needs an ID.
           - not_null
+          # Warning joins must preserve one row per drive.
           - unique
+          # Each intermediate drive must exist in staging.
           - relationships:
               arguments:
                 to: ref('stg_drives')
                 field: session_id
       - name: is_eligible
+        # Every drive needs an explicit eligibility decision.
         data_tests: [not_null]
       - name: reporting_week
         description: "Monday of device wall-calendar week, provisional timezone semantics."

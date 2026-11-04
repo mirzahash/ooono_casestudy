@@ -1,7 +1,8 @@
--- Grain: one canonical session; compare business payloads before casting.
+-- Grain: one session, represented by its earliest received report.
 {{ agreed_records('drives') }}
 , typed as (
-    select source_id as session_id, payload:user_id::varchar as user_id,
+    select source_id as session_id, 
+        payload:user_id::varchar as user_id,
         coalesce(payload:platform::varchar, 'unknown') as platform,
         coalesce(payload:app_version::varchar, 'unknown') as app_version,
         payload:os_version::varchar as os_version,
@@ -21,9 +22,6 @@
 select *,
     started_at is null or ended_at is null as has_timestamp_parse_error,
     coalesce(ended_at < started_at, false) as has_reversed_interval,
-    coalesce(started_at > dateadd(day,2,{{ cutoff_literal() }}::timestamp_ntz)
-        or ended_at > dateadd(day,2,{{ cutoff_literal() }}::timestamp_ntz),false) as has_future_device_clock,
     duration_s is null or duration_s <= 0 as has_invalid_duration,
-    connection_count is null or connection_count < 1 or mod(connection_count,1) <> 0 as has_invalid_connection_count,
-    coalesce(abs(duration_s-datediff('second',started_at,ended_at))>1,false) as has_duration_mismatch
+    connection_count is null or connection_count < 1 or mod(connection_count,1) <> 0 as has_invalid_connection_count
 from typed

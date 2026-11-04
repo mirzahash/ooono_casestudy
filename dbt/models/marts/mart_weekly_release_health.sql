@@ -1,14 +1,9 @@
 -- Grain: complete reporting week x platform x app version; device wall-calendar dates.
 with boundaries as (
-    select min(started_at)::date as first_observed_date,
-        {{ monday('min(started_at)') }} as first_observed_week,
-        {{ monday("convert_timezone('Europe/Copenhagen', " ~ cutoff_literal() ~ ")::date") }} as current_reporting_week
-    from {{ ref('int_drive_connection_behavior') }}
+    select {{ monday("convert_timezone('Europe/Copenhagen', " ~ cutoff_literal() ~ ")::date") }} as current_reporting_week
 ), eligible as (
     select d.* from {{ ref('int_drive_connection_behavior') }} d cross join boundaries b
     where d.is_eligible and d.reporting_week < b.current_reporting_week
-      -- Do not publish the known partial first source-calendar week.
-      and (d.reporting_week > b.first_observed_week or b.first_observed_date=b.first_observed_week)
 ), weekly as (
     select reporting_week, platform, app_version,
         count(*) as eligible_drives,

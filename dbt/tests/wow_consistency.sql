@@ -1,3 +1,5 @@
+-- What: Checks previous-week values and the multi-connection percentage-point change.
+-- Why: Ensure comparisons use the same platform/version exactly one week earlier.
 select c.reporting_week,c.platform,c.app_version
 from {{ ref('mart_weekly_release_health') }} c
 left join {{ ref('mart_weekly_release_health') }} p

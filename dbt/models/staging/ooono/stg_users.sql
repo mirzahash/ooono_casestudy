@@ -1,4 +1,4 @@
--- Grain: one agreeing user_id in the latest full user capture, not historical plans.
+-- Grain: one user_id in the latest full user capture, not historical plans.
 {{ agreed_records('users', false) }}
 , typed as (
     select source_id as user_id, payload:created_at::varchar as created_at_raw,

@@ -1,9 +1,10 @@
 version: 2
 models:
   - name: stg_drives
-    description: "One canonical session after agreeing-payload replay collapse, at the configured receipt cutoff. Invalid typed values remain flagged."
+    description: "One canonical session using the earliest received report per ID, at the configured receipt cutoff. Invalid typed values remain flagged."
     columns:
       - name: session_id
+        # Check: ID is present and unique. Keep one row per drive.
         data_tests: [not_null, unique]
       - name: first_received_at
         description: "Earliest observed UTC receipt for this session within the receipt cutoff."
@@ -12,16 +13,18 @@ models:
       - name: connection_count
         description: "Numeric count without rounding fractional values; descriptive, not a failure signal."
   - name: stg_warnings
-    description: "One agreeing warning_id, including orphan warnings and anomalous clocks. Receipt cutoff matches drives."
+    description: "One warning_id using the earliest received report, including orphan warnings and anomalous clocks. Receipt cutoff matches drives."
     columns:
       - name: warning_id
+        # Check: ID is present and unique. Keep one row per warning.
         data_tests: [not_null, unique]
       - name: session_id
         description: "May have no matching canonical drive; diagnosed with warning severity."
       - name: device_time
-        description: "Naive device clock; parsing/future-clock flags retained."
+        description: "Naive device clock; parsing flag retained."
   - name: stg_users
     description: "One user from the full current-state capture; no historical-plan assertion."
     columns:
       - name: user_id
+        # Check: ID is present and unique. Keep one row per user.
         data_tests: [not_null, unique]

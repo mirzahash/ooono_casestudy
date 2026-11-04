@@ -11,8 +11,8 @@ Build uses the latest successful warehouse ingestion cutoff. The full pipeline
 supplies candidate run_id/receipt_cutoff variables before marking it successful.
 
 Sources are append-only RAW.DRIVE_REPORTS and WARNING_REPORTS, plus replace-current
-USER_PROFILES. No snapshot selection is needed. Staging types reports and collapses
-agreeing business payloads; intermediate aggregates warnings before joining drives;
+USER_PROFILES. No snapshot selection is needed. Staging types reports and keeps
+the earliest received report per ID; intermediate aggregates warnings before joining drives;
 the weekly mart exposes complete-week metrics. Model grains/definitions are in YAML.
 
 The 23-column mart schema is retained for Steep. SNAPSHOT_ID now labels the

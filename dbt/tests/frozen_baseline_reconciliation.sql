@@ -1,3 +1,7 @@
+-- What: Compares weekly drive and multi-connection totals with measured results for 12 and 19 October 2026.
+-- Why: Check that the original weekly findings can be reproduced.
+-- Scope: runs only with validate_baseline=true and the original baseline data/cutoff.
+-- With the default false setting, this test returns no rows without checking counts.
 -- depends_on: {{ ref('mart_weekly_release_health') }}
 {% if reference_baseline() %}
 with expected as (
